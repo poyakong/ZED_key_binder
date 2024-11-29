@@ -1,0 +1,1914 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZED按键助手 by 破亚空-Yakong-P</title>
+    <style>
+        body {
+            /* font-family: ui-sans-serif; */
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+
+        .binding-list_advanced {
+            width: 100%;
+            max-width: 600px;
+            margin-top: 20px;
+        }
+
+        .binding-item_advanced {
+            background-color: #fff;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        .binding-item_advanced span {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .template-list_advanced {
+            width: 100%;
+            max-width: 600px;
+            margin-top: 20px;
+        }
+
+        .template-item_advanced {
+            background-color: #fff;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        .template-item_advanced span {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .input-group {
+            margin: 10px 0;
+        }
+
+        input[type="text"] {
+            padding: 5px;
+            width: 100%;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+
+        .button-group {
+            margin-top: 20px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        #dropArea {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-sizing: border-box;
+            border: 3px dashed #4CAF50;
+            font-size: 2em;
+            background-color: rgba(76, 175, 80, 0.1);
+            text-align: center;
+            /*   padding: 20px; */
+            border-radius: 0;
+            white-space: pre-line;
+            /* Ensures that newline characters are respected */
+            z-index: 10;
+            cursor: pointer;
+            /* 鼠标指针提示 */
+        }
+
+        .hidden {
+            display: none !important;
+            /* 强制隐藏 */
+        }
+
+        .advanced {
+            display: none !important;
+            /* 强制隐藏 */
+        }
+
+        #addBindingButton {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 10px;
+            background-color: #ffcc00;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            font-size: 24px;
+            width: 50px;
+            height: 50px;
+            text-align: center;
+            cursor: pointer;
+            box-shadow: 0 4px #ad8b00;
+            /* 创建按钮下方的阴影 */
+        }
+
+        #addBindingButton:hover {
+            background-color: #d4aa00;
+        }
+
+        #addBindingButton:active {
+            box-shadow: 0 2px #ad8b00;
+            /* 按下时阴影减小 */
+            transform: translateY(4px);
+            /* 按钮下移的效果 */
+        }
+
+
+        /* 模态框样式 */
+        #bindingModal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+        }
+
+        .modal-content {
+            background: #fff;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            width: 400px;
+            /* 确保内容宽度一致 */
+            max-width: 90%;
+            /* 防止窗口太窄时溢出 */
+        }
+
+        .modal-content h3 {
+            margin: 0 0 20px 0;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .input-group input {
+            width: 95%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .button-group {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .button-group button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .button-group button#saveBindingButton {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .button-group button#saveBindingButton:hover {
+            background-color: #45a049;
+        }
+
+        .button-group button#cancelBindingButton {
+            background-color: #f44336;
+            color: white;
+        }
+
+        .button-group button#cancelBindingButton:hover {
+            background-color: #e53935;
+        }
+
+        /* 为输入框允许多行显示增加样式 */
+        textarea {
+            width: 95%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            resize: none;
+            /* 允许用户调整高度 */
+            min-height: 10px;
+            /* 最小高度 */
+        }
+
+        /* 设置容器宽度、布局和对齐 */
+        #bindingList {
+            display: flex;
+            flex-direction: column;
+            width: 80%;
+            /* 改为100% */
+            max-width: 600px;
+            /* 保持最大宽度 */
+            margin: 0 auto;
+            /* 居中 */
+            padding: 0;
+            /* 添加一些水平内边距 */
+            box-sizing: border-box;
+            gap: 10px;
+        }
+
+        /* 设置容器宽度、布局和对齐 */
+        #templateList {
+            display: flex;
+            flex-direction: column;
+            top: 9px;
+            width: 80%;
+            /* 改为100% */
+            max-width: 600px;
+            /* 保持最大宽度 */
+            margin: 0 auto;
+            /* 居中 */
+            padding: 0;
+            /* 添加一些水平内边距 */
+            box-sizing: border-box;
+            gap: 10px;
+        }
+
+        /* 每个按键绑定的行 */
+        .binding-item {
+            display: block;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+            background-color: #fff;
+        }
+
+        /* 描述部分 */
+        .binding-item .description {
+            flex: 0;
+            text-align: left;
+            /* 向左对齐 */
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            overflow: hidden;
+            padding-right: 10px;
+            /* 与按钮之间留一些空间 */
+        }
+
+        /* 按钮样式 */
+        .binding-item button {
+            display: inline-flex;
+            flex-shrink: 0;
+            /* 防止按钮被挤压 */
+            min-width: 45px;
+            height: 40px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            /* 改为方形 */
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+            margin-left: auto;
+            /* 将按钮推到最右侧 */
+            box-shadow: 0 4px #2e7d32;
+            /* 创建按钮下方的阴影 */
+        }
+
+        /* 按钮悬浮效果 */
+        .binding-item button:hover {
+            background-color: #45a049;
+        }
+
+        /* 每个按键绑定的行 */
+        .template-item {
+            display: block;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+            background-color: #fff;
+        }
+
+        /* 描述部分 */
+        .template-item .description {
+            flex: 0;
+            text-align: left;
+            /* 向左对齐 */
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            overflow: hidden;
+            padding-right: 10px;
+            /* 与按钮之间留一些空间 */
+        }
+
+        /* 按钮样式 */
+        .template-item button {
+            display: inline-flex;
+            flex-shrink: 0;
+            /* 防止按钮被挤压 */
+            min-width: 45px;
+            height: 40px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            /* 改为方形 */
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+            margin-left: auto;
+            /* 将按钮推到最右侧 */
+            box-shadow: 0 4px #2e7d32;
+            /* 创建按钮下方的阴影 */
+        }
+
+        /* 按钮悬浮效果 */
+        .template-item button:hover {
+            background-color: #45a049;
+        }
+
+        .keyDetectorOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            color: white;
+            font-size: 2em;
+            text-align: center;
+        }
+
+        #Info {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+        }
+
+        .togglerList {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            /* 设置为 flex 布局 */
+            justify-content: flex-end;
+            /* 水平方向右对齐 */
+            align-items: flex-end;
+            /* 垂直方向底部对齐 */
+            flex-direction: column-reverse;
+        }
+
+        .toggler {
+            display: block;
+            /* 使按钮堆叠 */
+            align-items: end;
+            /* 右对齐 */
+            margin-bottom: 10px;
+            /* 按钮之间的间距 */
+            font-size: 24px;
+            padding: 20px;
+            width: 136px;
+            height: 71px;
+            background-color: #4CAF50;
+            color: white;
+            box-shadow: 0 4px #2e7d32;
+            /* 创建按钮下方的阴影 */
+        }
+
+        .toggler:active {
+            box-shadow: 0 2px #2e7d32;
+            /* 按下时阴影减小 */
+            transform: translateY(4px);
+            /* 按钮下移的效果 */
+        }
+
+        /* 搜索框容器 */
+        #searchContainer {
+            max-width: 600px;
+            width: 80%;
+            margin: 20px auto;
+            text-align: center;
+        }
+
+        /* 搜索框样式 */
+        #searchBox {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+
+
+        /* 消息框 */
+        .popupContainerCSS {
+            position: relative;
+            top: 0px;
+            left: 0px;
+            display: block;
+            justify-content: center;
+            align-items: right;
+        }
+
+        .popup {
+            background: white;
+            margin-bottom: 10px;
+            /* 每个元素底部之间的间隔 */
+            padding: 25px 30px;
+            /* 内边距 */
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+            border: 2px solid #007BFF;
+            /* 明显的蓝色边框 */
+            border-radius: 12px;
+            top: 20px;
+            text-align: center;
+            font-size: 16px;
+            font-weight: bold;
+            opacity: 1;
+            transition: opacity 0.5s ease-out;
+            z-index: 1000;
+        }
+
+        .popup.fade-out {
+            opacity: 0;
+        }
+
+        .off {
+            /* white blackground */
+            background-color: #d6e4d6 !important;
+            box-shadow: 0 2px #bdd3bd !important;
+        }
+
+        .on {
+            background-color: #4CAF50;
+        }
+
+        .warm {
+            background-color: #ffcc00 !important;
+            box-shadow: 0 2px #ad8b00 !important;
+        }
+
+        .hot {
+            background-color: #ff5722 !important;
+        }
+
+        /* 垃圾桶样式 */
+        #trashBin {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            font-size: 80px;
+            cursor: pointer;
+            z-index: 1000;
+            transition: transform 0.2s, opacity 0.2s;
+            opacity: 0.7;
+            padding: 20px;
+            /* 增加可点击区域 */
+            background-color: rgba(128, 128, 128, 0.1);
+            /* 添加背景 */
+            border-radius: 10px;
+        }
+
+        #trashBin.drag-over {
+            transform: scale(1.2);
+            opacity: 1;
+            background-color: rgba(255, 0, 0, 0.1);
+            /* 高亮背景 */
+        }
+
+        #trashBin.hidden {
+            display: none !important;
+        }
+
+        /* Style for the clip bin, similar to trash bin */
+        #copyBin {
+            position: fixed;
+            top: 35%;
+            /* Positioned above the trash bin */
+            left: 20px;
+            font-size: 80px;
+            cursor: pointer;
+            z-index: 1000;
+            transition: transform 0.2s, opacity 0.2s;
+            opacity: 0.7;
+            padding: 20px;
+            background-color: rgba(128, 128, 128, 0.1);
+            border-radius: 10px;
+        }
+
+        #copyBin.drag-over {
+            transform: scale(1.2);
+            opacity: 1;
+            background-color: rgba(0, 255, 0, 0.1);
+            /* Green highlight for copy */
+        }
+
+        #copyBin.hidden {
+            display: none !important;
+        }
+
+        /* Style for the copy bin, similar to trash bin */
+        #clipBin {
+            position: fixed;
+            top: 20px;
+            /* Positioned above the trash bin */
+            left: 20px;
+            font-size: 80px;
+            cursor: pointer;
+            z-index: 1000;
+            transition: transform 0.2s, opacity 0.2s;
+            opacity: 0.7;
+            padding: 20px;
+            background-color: rgba(128, 128, 128, 0.1);
+            border-radius: 10px;
+        }
+
+        #clipBin.drag-over {
+            transform: scale(1.2);
+            opacity: 1;
+            background-color: rgba(0, 255, 0, 0.1);
+            /* Green highlight for copy */
+        }
+
+        #clipBin.hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1 id="appTitle" class="hidden">CS2 按键绑定助手 for ZED (2024-11-28)</h1>
+
+    <div id="dropArea">点击打开，或直接拖拽放置 📄 poyakong.cfg</div>
+    <button id="addBindingButton" class="hidden advanced">+</button>
+    <button id="Info" class="hidden toggler">关于</button>
+    <div class="togglerList">
+        <button id="autoSaveButton" class="hidden toggler">自动保存</button>
+        <button id="advancedModeButton" class="hidden toggler">高级模式</button>
+        <button id="exportSettingsButton" class="hidden toggler">配置导出</button>
+        <button id="importSettingsButton" class="hidden toggler advanced">配置导入</button>
+        <button id="clipboardButton" class="hidden toggler">复制到剪切板</button>
+        <div id="popupContainer" class="popupContainerCSS"></div>
+    </div>
+    <div id="searchContainer" class="hidden">
+        <input type="text" id="searchBox" placeholder="全局搜索..." />
+    </div>
+    <div id="bindingList" class="binding-list hidden"></div>
+    <div id="templateList" class="template-list hidden"></div>
+    <div id="clipBin" class="hidden" title="拖放到这，复制到剪切板">📋</div>
+    <div id="copyBin" class="hidden" title="拖放到这，可以多绑">📑</div>
+    <div id="trashBin" class="hidden" title="拖放到这，进行删除">🗑️</div>
+
+
+    <div id="bindingModal" class="hidden">
+        <div class="modal-content">
+            <h3>添加新绑定</h3>
+            <div class="input-group">
+                <label for="descriptionInput">Description:</label>
+                <input type="text" id="descriptionInput" placeholder="例如：向前移动"></textarea>
+            </div>
+            <div class="input-group">
+                <label for="bindInput">Bind (可选):</label>
+                <input type="text" id="bindInput" placeholder="例如：w"></textarea>
+            </div>
+            <div class="input-group">
+                <label for="commandInput">Command:</label>
+                <textarea id="commandInput" placeholder="例如：bind [key] +forward"></textarea>
+            </div>
+            <div class="input-group">
+                <label for="tagInput">Tags (逗号分隔，可多行):</label>
+                <input type="text" id="tagInput" placeholder="例如：移动, 基本设置"></textarea>
+            </div>
+            <div class="button-group">
+                <button id="saveBindingButton">保存</button>
+                <button id="cancelBindingButton">取消</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        let currentFile = null;
+        const dropArea = document.getElementById('dropArea');
+        const bindingListElement = document.getElementById('bindingList');
+        const templateListElement = document.getElementById('templateList');
+        const addBindingButton = document.getElementById('addBindingButton');    // 新增绑定按钮
+        const advancedModeButton = document.getElementById('advancedModeButton');    // 进阶模式按钮
+        let advancedMode = false;    // 进阶模式
+        const autoSaveButton = document.getElementById('autoSaveButton');    // 自动保存按钮
+        let autoSaveMode = false;    // 自动保存模式
+        const exportSettingsButton = document.getElementById('exportSettingsButton');    // 导出设置按钮
+        const importSettingsButton = document.getElementById('importSettingsButton');    // 导入设置按钮
+        const clipboardButton = document.getElementById('clipboardButton');    // 复制到剪切板按钮
+        const Info = document.getElementById('Info');    // 关于按钮
+
+        const searchContainer = document.getElementById('searchContainer');
+        const searchBox = document.getElementById('searchBox');
+
+        // 彩蛋
+        let secretCounter = 0;
+
+        let bindings = [];
+        let templates = [];
+        let bindingsFilter = () => bindings; // 初始筛选函数，返回完整数组
+        let templatesFilter = () => templates; // 初始筛选函数，返回完整数组
+
+        // Get trash bin element
+        const trashBin = document.getElementById('trashBin');
+
+        // Get copy bin element
+        const copyBin = document.getElementById('copyBin');
+
+        // Get clip bin element
+        const clipBin = document.getElementById('clipBin');
+
+        const bindingModal = document.getElementById('bindingModal');
+        const saveBindingButton = document.getElementById('saveBindingButton');
+        const cancelBindingButton = document.getElementById('cancelBindingButton');
+
+        const appTitle = document.getElementById('appTitle');
+
+        // 显示模态框
+        function showBindingModal() {
+            bindingModal.classList.remove('hidden');
+        }
+
+        // 隐藏模态框
+        function hideBindingModal() {
+            bindingModal.classList.add('hidden');
+        }
+
+        // 显示消息框
+        function showPopup(message, containerId) {
+            // Find the container by ID
+            const container = document.getElementById(containerId);
+
+            // Create a new popup element
+            const popup = document.createElement('div');
+            popup.classList.add('popup');
+            popup.textContent = message;
+
+            // Append it to the specified container
+            container.appendChild(popup);
+
+            // Automatically fade out and remove the popup
+            setTimeout(() => {
+                popup.classList.add('fade-out');
+                popup.addEventListener('transitionend', () => popup.remove());
+            }, 3000); // Popup stays for 3 seconds
+        }
+
+        // 保存绑定逻辑
+        saveBindingButton.addEventListener('click', () => {
+            const descriptionInput = document.getElementById('descriptionInput').value.trim();
+            const bindInput = document.getElementById('bindInput').value.trim();
+            const commandInput = document.getElementById('commandInput').value.trim();
+            const tagInput = document.getElementById('tagInput').value.trim();
+
+            if (descriptionInput && commandInput) {
+                templates.push({
+                    description: descriptionInput,
+                    bind: bindInput || "", // bind 为空时设为默认空字符串
+                    command: commandInput,
+                    tag: tagInput.split(/[,，]/).map(tag => tag.trim())
+                });
+                renderBindings();
+                hideBindingModal();
+            } else {
+                alert('请填写所有必填项 (Description 和 Command)！');
+            }
+        });
+
+        // 取消按钮逻辑
+        cancelBindingButton.addEventListener('click', hideBindingModal);
+
+        // 绑定 "+" 按钮的事件
+        addBindingButton.addEventListener('click', showBindingModal);
+
+        // 绑定搜索功能
+        searchBox.addEventListener("input", () => {
+            const query = searchBox.value.trim().toLowerCase();
+            const lowerCaseQuery = query.trim().toLowerCase();
+            bindingsFilter = () => bindings.filter(binding =>
+                binding.description.toLowerCase().includes(lowerCaseQuery)
+            );
+            templatesFilter = () => templates.filter(template =>
+                template.description.toLowerCase().includes(lowerCaseQuery)
+            );
+            renderBindings(); // 根据筛选结果重新渲染
+            RenderTemplates();
+        });
+
+        // 重写 renderBindings 以确保每次渲染后重新绑定拖放事件
+        function renderBindings(filteredBindings = bindings) {
+            // 原有的渲染逻辑保持不变
+            const originalRenderResult = originalRenderBindings(filteredBindings);
+
+            // 重新绑定拖放事件
+            attachDragEvents();
+
+            return originalRenderResult;
+        }
+
+
+        // 核心渲染
+        function originalRenderBindings(filteredBindings = bindingsFilter) {
+            if (!advancedMode) {
+                bindingListElement.innerHTML = ''; // Clear existing content
+                bindingListElement.classList.add('drag-list');
+
+                filteredBindings.forEach((filteredBinding, filteredIndex) => {
+                    const originalIndex = bindings.indexOf(filteredBinding); // 获取原始索引
+                    const bindingItem = document.createElement('div');
+                    bindingItem.setAttribute('data-original-index', originalIndex); // 存储原始索引
+                    bindingItem.classList.add('binding-item', 'draggable');
+                    bindingItem.setAttribute('draggable', true);
+                    bindingItem.id = `binding-${filteredIndex}`;
+
+                    // Create a container for layout
+                    const itemContent = document.createElement('div');
+                    itemContent.style.display = 'flex';
+                    itemContent.style.justifyContent = 'space-between';
+                    itemContent.style.alignItems = 'center';
+
+                    // Description text (left-aligned)
+                    const descriptionSpan = document.createElement('span');
+                    descriptionSpan.textContent = filteredBinding.description;
+                    descriptionSpan.style.flex = '1';
+                    descriptionSpan.style.textOverflow = 'ellipsis';
+                    descriptionSpan.style.whiteSpace = 'nowrap';
+                    descriptionSpan.style.overflow = 'hidden';
+                    descriptionSpan.style.paddingLeft = '5px';
+
+                    // Key setup button (right-aligned)
+                    const keyButton = document.createElement('button');
+                    keyButton.textContent = filteredBinding.bind || '设置';
+
+                    // Add click event to setup key
+                    keyButton.addEventListener('click', () => {
+                        setupKeyDetector(filteredBinding, filteredIndex);
+                    });
+
+                    // Drag and drop event listeners
+                    bindingItem.addEventListener('dragstart', dragStart);
+                    bindingItem.addEventListener('dragover', dragOver);
+                    bindingItem.addEventListener('drop', drop);
+                    bindingItem.addEventListener('dragenter', dragEnter);
+                    bindingItem.addEventListener('dragleave', dragLeave);
+
+                    // Assemble the item
+                    itemContent.appendChild(descriptionSpan);
+                    itemContent.appendChild(keyButton);
+
+                    bindingItem.appendChild(itemContent);
+                    bindingListElement.appendChild(bindingItem);
+                });
+
+                // Add some CSS for drag and drop animations
+                const style = document.createElement('style');
+                style.textContent = `
+            .draggable {
+                transition: transform 0.2s, box-shadow 0.2s;
+                cursor: move;
+            }
+            .draggable:hover {
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            }
+            .draggable.drag-over {
+                transform: scale(1.02);
+                box-shadow: 0 6px 8px rgba(0,0,0,0.2);
+                border: 2px dashed #4CAF50;
+            }
+        `;
+                document.head.appendChild(style);
+            } else {
+                // Advanced mode with editable fields
+                bindingListElement.innerHTML = '';
+                filteredBindings.forEach((filteredBinding, filteredIndex) => {
+                    const originalIndex = bindings.indexOf(filteredBinding); // 获取原始索引
+                    const bindingItem = document.createElement('div');
+                    bindingItem.setAttribute('data-original-index', originalIndex); // 存储原始索引
+                    bindingItem.classList.add('binding-item_advanced');
+
+                    // Create container for editable fields
+                    const editContainer = document.createElement('div');
+                    editContainer.classList.add('advanced-edit-container');
+
+                    // Description input (single line)
+                    const descriptionInput = document.createElement('input');
+                    descriptionInput.type = 'text';
+                    descriptionInput.value = filteredBinding.description;
+                    descriptionInput.placeholder = 'Description';
+                    descriptionInput.classList.add('advanced-input', 'single-line');
+
+                    // Bind input (single line)
+                    const bindInput = document.createElement('input');
+                    bindInput.type = 'text';
+                    bindInput.value = filteredBinding.bind;
+                    bindInput.placeholder = 'Bind Key';
+                    bindInput.classList.add('advanced-input', 'single-line');
+
+                    // Command input (multi-line)
+                    const commandInput = document.createElement('textarea');
+                    commandInput.value = filteredBinding.command;
+                    commandInput.placeholder = 'Command';
+                    commandInput.classList.add('advanced-input', 'multi-line');
+
+                    // Tags input (single line)
+                    const tagInput = document.createElement('input');
+                    tagInput.type = 'text';
+                    tagInput.value = filteredBinding.tag.join(', ');
+                    tagInput.placeholder = 'Tags (comma-separated)';
+                    tagInput.classList.add('advanced-input', 'single-line');
+
+                    // Add change event listeners to update the bindings
+                    const updateBinding = () => {
+                        bindings[filteredIndex].description = descriptionInput.value;
+                        bindings[filteredIndex].bind = bindInput.value;
+                        bindings[filteredIndex].command = commandInput.value;
+                        bindings[filteredIndex].tag = tagInput.value.split(/[,，]/).map(tag => tag.trim()).filter(tag => tag);
+                    };
+
+                    descriptionInput.addEventListener('change', updateBinding);
+                    bindInput.addEventListener('change', updateBinding);
+                    commandInput.addEventListener('change', updateBinding);
+                    tagInput.addEventListener('change', updateBinding);
+
+                    // Create label for each input
+                    const createLabel = (text) => {
+                        const label = document.createElement('label');
+                        label.textContent = text;
+                        label.classList.add('advanced-label');
+                        return label;
+                    };
+
+                    // Assemble the item
+                    const fields = [
+                        { label: 'Description:', input: descriptionInput },
+                        { label: 'Bind:', input: bindInput },
+                        { label: 'Command:', input: commandInput },
+                        { label: 'Tags:', input: tagInput }
+                    ];
+
+                    fields.forEach(field => {
+                        const fieldWrapper = document.createElement('div');
+                        fieldWrapper.classList.add('advanced-field-wrapper');
+
+                        const label = createLabel(field.label);
+                        fieldWrapper.appendChild(label);
+                        fieldWrapper.appendChild(field.input);
+
+                        editContainer.appendChild(fieldWrapper);
+                    });
+
+                    bindingItem.appendChild(editContainer);
+                    bindingListElement.appendChild(bindingItem);
+                });
+
+                // Add some CSS for styling
+                const style = document.createElement('style');
+                style.textContent = `
+            .advanced-edit-container {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                width: 100%;
+            }
+            
+            .advanced-field-wrapper {
+                display: flex;
+                flex-direction: column;
+                width: 100%;
+            }
+            
+            .advanced-label {
+                margin-bottom: 5px;
+                font-weight: bold;
+            }
+            
+            .advanced-input {
+                width: 100%;
+                padding: 8px;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                box-sizing: border-box;
+            }
+            
+            .advanced-input.single-line {
+                height: 40px;
+            }
+            
+            .advanced-input.multi-line {
+                min-height: 100px;
+                resize: vertical;
+            }
+        `;
+                document.head.appendChild(style);
+            }
+        }
+
+        // 核心渲染
+        function RenderTemplates(templatesFilter) {
+            if (!advancedMode) {
+                templateListElement.innerHTML = ''; // Clear existing content
+                templateListElement.classList.add('drag-list');
+
+                templates.forEach((filteredTemplates, filteredIndex) => {
+                    const originalIndex = templates.indexOf(filteredTemplates); // 获取原始索引
+                    const templateItem = document.createElement('div');
+                    templateItem.setAttribute('data-original-index', originalIndex); // 存储原始索引
+                    templateItem.classList.add('template-item');
+                    // templateItem.classList.add('draggable');
+                    // templateItem.setAttribute('draggable', true);
+                    templateItem.id = `template-${filteredIndex}`;
+
+                    // Create a container for layout
+                    const itemContent = document.createElement('div');
+                    itemContent.style.display = 'flex';
+                    itemContent.style.justifyContent = 'space-between';
+                    itemContent.style.alignItems = 'center';
+
+                    // Description text (left-aligned)
+                    const descriptionSpan = document.createElement('span');
+                    descriptionSpan.textContent = filteredTemplates.description;
+                    descriptionSpan.style.flex = '1';
+                    descriptionSpan.style.textOverflow = 'ellipsis';
+                    descriptionSpan.style.whiteSpace = 'nowrap';
+                    descriptionSpan.style.overflow = 'hidden';
+                    descriptionSpan.style.paddingLeft = '5px';
+
+                    // Key setup button (right-aligned)
+                    const keyButton = document.createElement('button');
+                    keyButton.textContent = filteredTemplates.bind || '设置';
+
+                    // Add click event to setup key
+                    keyButton.addEventListener('click', () => {
+                        setupKeyDetector(filteredTemplates, filteredIndex);
+                    });
+
+                    // Drag and drop event listeners
+                    // templateItem.addEventListener('dragstart', dragStart);
+                    // templateItem.addEventListener('dragover', dragOver);
+                    // templateItem.addEventListener('drop', drop);
+                    // templateItem.addEventListener('dragenter', dragEnter);
+                    // templateItem.addEventListener('dragleave', dragLeave);
+
+                    // Assemble the item
+                    itemContent.appendChild(descriptionSpan);
+                    itemContent.appendChild(keyButton);
+
+                    templateItem.appendChild(itemContent);
+                    templateListElement.appendChild(templateItem);
+                });
+
+                // Add some CSS for drag and drop animations
+                const style = document.createElement('style');
+                style.textContent = `
+            .draggable {
+                transition: transform 0.2s, box-shadow 0.2s;
+                cursor: move;
+            }
+            .draggable:hover {
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            }
+            .draggable.drag-over {
+                transform: scale(1.02);
+                box-shadow: 0 6px 8px rgba(0,0,0,0.2);
+                border: 2px dashed #4CAF50;
+            }
+        `;
+                document.head.appendChild(style);
+            } else {
+                // Advanced mode with editable fields
+                templateListElement.innerHTML = '';
+                templates.forEach((filteredTemplates, filteredIndex) => {
+                    const originalIndex = templates.indexOf(filteredTemplates); // 获取原始索引
+                    const templateItem = document.createElement('div');
+                    templateItem.setAttribute('data-original-index', originalIndex); // 存储原始索引
+                    templateItem.classList.add('template-item_advanced');
+
+                    // Create container for editable fields
+                    const editContainer = document.createElement('div');
+                    editContainer.classList.add('advanced-edit-container');
+
+                    // Description input (single line)
+                    const descriptionInput = document.createElement('input');
+                    descriptionInput.type = 'text';
+                    descriptionInput.value = filteredTemplates.description;
+                    descriptionInput.placeholder = 'Description';
+                    descriptionInput.classList.add('advanced-input', 'single-line');
+
+                    // Bind input (single line)
+                    const bindInput = document.createElement('input');
+                    bindInput.type = 'text';
+                    bindInput.value = filteredTemplates.bind;
+                    bindInput.placeholder = 'Bind Key';
+                    bindInput.classList.add('advanced-input', 'single-line');
+
+                    // Command input (multi-line)
+                    const commandInput = document.createElement('textarea');
+                    commandInput.value = filteredTemplates.command;
+                    commandInput.placeholder = 'Command';
+                    commandInput.classList.add('advanced-input', 'multi-line');
+
+                    // Tags input (single line)
+                    const tagInput = document.createElement('input');
+                    tagInput.type = 'text';
+                    tagInput.value = filteredTemplates.tag.join(', ');
+                    tagInput.placeholder = 'Tags (comma-separated)';
+                    tagInput.classList.add('advanced-input', 'single-line');
+
+                    // Add change event listeners to update the templates
+                    const updateTemplates = () => {
+                        templates[filteredIndex].description = descriptionInput.value;
+                        templates[filteredIndex].bind = bindInput.value;
+                        templates[filteredIndex].command = commandInput.value;
+                        templates[filteredIndex].tag = tagInput.value.split(/[,，]/).map(tag => tag.trim()).filter(tag => tag);
+                    };
+
+                    descriptionInput.addEventListener('change', updateTemplates);
+                    bindInput.addEventListener('change', updateTemplates);
+                    commandInput.addEventListener('change', updateTemplates);
+                    tagInput.addEventListener('change', updateTemplates);
+
+                    // Create label for each input
+                    const createLabel = (text) => {
+                        const label = document.createElement('label');
+                        label.textContent = text;
+                        label.classList.add('advanced-label');
+                        return label;
+                    };
+
+                    // Assemble the item
+                    const fields = [
+                        { label: 'Description:', input: descriptionInput },
+                        { label: 'Bind:', input: bindInput },
+                        { label: 'Command:', input: commandInput },
+                        { label: 'Tags:', input: tagInput }
+                    ];
+
+                    fields.forEach(field => {
+                        const fieldWrapper = document.createElement('div');
+                        fieldWrapper.classList.add('advanced-field-wrapper');
+
+                        const label = createLabel(field.label);
+                        fieldWrapper.appendChild(label);
+                        fieldWrapper.appendChild(field.input);
+
+                        editContainer.appendChild(fieldWrapper);
+                    });
+
+                    templateItem.appendChild(editContainer);
+                    templateListElement.appendChild(templateItem);
+                });
+
+                // Add some CSS for styling
+                const style = document.createElement('style');
+                style.textContent = `
+            .advanced-edit-container {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                width: 100%;
+            }
+            
+            .advanced-field-wrapper {
+                display: flex;
+                flex-direction: column;
+                width: 100%;
+            }
+            
+            .advanced-label {
+                margin-bottom: 5px;
+                font-weight: bold;
+            }
+            
+            .advanced-input {
+                width: 100%;
+                padding: 8px;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                box-sizing: border-box;
+            }
+            
+            .advanced-input.single-line {
+                height: 40px;
+            }
+            
+            .advanced-input.multi-line {
+                min-height: 100px;
+                resize: vertical;
+            }
+        `;
+                document.head.appendChild(style);
+            }
+        }
+
+        // 修改拖放事件处理逻辑
+        let draggedItem = null;
+
+        function dragStart(e) {
+            draggedItem = e.target.closest('.draggable');
+            e.dataTransfer.setData('text/plain', draggedItem.id);
+
+            // 为垃圾桶添加拖放事件
+            trashBin.addEventListener('dragover', trashBinDragOver);
+            trashBin.addEventListener('dragleave', trashBinDragLeave);
+            trashBin.addEventListener('drop', trashBinDrop);
+
+            // Add events for copy bin
+            copyBin.addEventListener('dragover', copyCopyBinDragOver);
+            copyBin.addEventListener('dragleave', copyCopyBinDragLeave);
+            copyBin.addEventListener('drop', copyCopyBinDrop);
+
+            // Add events for clip bin
+            clipBin.addEventListener('dragover', clipBinDragOver);
+            clipBin.addEventListener('dragleave', clipBinDragLeave);
+            clipBin.addEventListener('drop', clipBinDrop);
+
+            setTimeout(() => {
+                draggedItem.classList.add('drag-over');
+            }, 0);
+        }
+
+        function dragOver(e) {
+            e.preventDefault();
+            return false;
+        }
+
+        function dragEnter(e) {
+            const target = e.target.closest('.draggable');
+            if (target && target !== draggedItem) {
+                target.classList.add('drag-over');
+            }
+        }
+
+        function dragLeave(e) {
+            const target = e.target.closest('.draggable');
+            if (target) {
+                target.classList.remove('drag-over');
+            }
+        }
+
+        function trashBinDragOver(e) {
+            e.preventDefault();
+            trashBin.classList.add('drag-over');
+        }
+
+        function trashBinDragLeave(e) {
+            trashBin.classList.remove('drag-over');
+        }
+
+        function trashBinDrop(e) {
+            e.preventDefault();
+            trashBin.classList.remove('drag-over');
+
+            // 通过 id 获取被拖动的元素
+            const draggedId = e.dataTransfer.getData('text/plain');
+            const draggedElement = document.getElementById(draggedId);
+
+            if (draggedElement) {
+                // 获取被拖动元素的索引
+                const originalIndex = parseInt(draggedElement.dataset.originalIndex, 10); // 获取原始索引
+
+                // 显示删除提示
+                showPopup("绑定" + bindings[originalIndex].description + "已删除", 'popupContainer');
+
+                // 从 bindings 数组中移除对应的绑定
+                bindings.splice(originalIndex, 1);
+
+                // 重新渲染绑定列表
+                renderBindings();
+            }
+
+            // 清除拖放状态
+            draggedItem = null;
+        }
+
+        // Modify the existing script to add copy functionality
+        function copyCopyBinDragOver(e) {
+            e.preventDefault();
+            copyBin.classList.add('drag-over');
+        }
+
+        function copyCopyBinDragLeave(e) {
+            copyBin.classList.remove('drag-over');
+        }
+
+        function copyCopyBinDrop(e) {
+            e.preventDefault();
+            copyBin.classList.remove('drag-over');
+
+            // Get the dragged item's ID
+            const draggedId = e.dataTransfer.getData('text/plain');
+            const draggedElement = document.getElementById(draggedId);
+
+            if (draggedElement) {
+                const originalIndex = parseInt(draggedElement.dataset.originalIndex, 10); // 获取原始索引
+
+                // Create a deep copy of the binding at the dragged index
+                const copiedBinding = JSON.parse(JSON.stringify(bindings[originalIndex]));
+
+                // Insert the copied binding at the dragged index
+                bindings.splice(originalIndex, 0, copiedBinding);
+
+                // Re-render the bindings list
+                renderBindings();
+
+                // Show a popup to confirm copying
+                showPopup("绑定" + bindings[originalIndex].description + "已复制", 'popupContainer');
+            }
+
+            // Clear drag state
+            draggedItem = null;
+        }
+
+        function clipBinDragOver(e) {
+            e.preventDefault();
+            clipBin.classList.add('drag-over');
+        }
+
+        function clipBinDragLeave(e) {
+            clipBin.classList.remove('drag-over');
+        }
+
+        function clipBinDrop(e) {
+            e.preventDefault();
+            clipBin.classList.remove('drag-over');
+
+            // 通过 id 获取被拖动的元素
+            const draggedId = e.dataTransfer.getData('text/plain');
+            const draggedElement = document.getElementById(draggedId);
+
+            if (draggedElement) {
+                const originalIndex = parseInt(draggedElement.dataset.originalIndex, 10); // 获取原始索引
+
+                // 复制到剪切板
+                const copyText = extractAsCmd(bindings[originalIndex]);
+                if (copyText === "") {
+                    showPopup("此设置的键位为空，无法复制到剪切板", 'popupContainer');
+                    return;
+                }
+                navigator.clipboard.writeText(copyText)
+                    .then(() => {
+                        showPopup("绑定" + bindings[originalIndex].description + "已复制到剪切板", 'popupContainer');
+                        console.log("绑定[" + copyText + "]已复制到剪切板");
+                    })
+                    .catch(err => {
+                        showPopup("复制到剪切板失败" + err, 'popupContainer');
+                    });
+            }
+
+            // 清除拖放状态
+            draggedItem = null;
+        }
+
+        function drop(e) {
+            e.preventDefault();
+            const target = e.target.closest('.draggable');
+
+            // 移除所有拖放样式
+            document.querySelectorAll('.draggable').forEach(item => {
+                item.classList.remove('drag-over');
+            });
+
+            if (target && target !== draggedItem) {
+                // 获取拖动和目标元素的索引
+                const draggedIndex = parseInt(draggedItem.dataset.originalIndex, 10);
+                const targetIndex = parseInt(target.dataset.originalIndex, 10);
+
+                // 从原位置移除绑定
+                const removedBinding = bindings.splice(draggedIndex, 1)[0];
+
+                // 在新位置插入绑定
+                bindings.splice(targetIndex, 0, removedBinding);
+
+                // 重新渲染绑定列表
+                renderBindings();
+            }
+
+            // 清除拖放状态
+            draggedItem = null;
+        }
+
+        // 确保所有拖放事件被正确绑定
+        function attachDragEvents() {
+            const draggableItems = document.querySelectorAll('.draggable');
+            draggableItems.forEach(item => {
+                item.addEventListener('dragstart', dragStart);
+                item.addEventListener('dragover', dragOver);
+                item.addEventListener('drop', drop);
+                item.addEventListener('dragenter', dragEnter);
+                item.addEventListener('dragleave', dragLeave);
+            });
+        }
+
+        dropArea.addEventListener('dragover', (event) => {
+            event.preventDefault();
+        });
+
+        dropArea.addEventListener('drop', (event) => {
+            event.preventDefault();
+            const file = event.dataTransfer.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        });
+
+        dropArea.addEventListener('click', () => {
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = '.cfg';
+
+            fileInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    handleFile(file);
+                }
+            });
+
+            fileInput.click();
+        });
+
+        function handleFile(file) {
+            const reader = new FileReader();
+
+            reader.onload = function (event) {
+                const content = event.target.result;
+
+                if (content.startsWith("//poyakong.cfg")) {
+                    dropArea.textContent = '文件载入中...';
+                    setTimeout(() => {
+                        currentFile = file;
+                        dropArea.style.display = 'none';
+                        removeHiddens();
+                        loadBindingsFromFile(content);
+                        showPopup("欢迎使用CS2按键助手！", 'popupContainer');
+                    }, 500);
+                } else {
+                    dropArea.textContent = '似乎是不受支持的格式\n请确保载入poyakong.cfg格式的文件';
+                }
+            };
+
+            reader.onerror = function () {
+                dropArea.textContent = '无法读取文件\n请确保载入正确的文本格式的poyakong.cfg文件';
+            };
+
+            reader.readAsText(file, 'UTF-8');
+        }
+
+        function importFile() {
+            // 创建一个隐藏的文件输入元素
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = '.cfg'; // 设置支持的文件类型
+
+            // 监听文件选择事件
+            fileInput.addEventListener('change', (event) => {
+                const file = event.target.files[0]; // 获取用户选择的文件
+                if (file) {
+                    // 读取文件内容
+                    const reader = new FileReader();
+                    reader.onload = function (e) {
+                        const content = e.target.result; // 获取文件内容
+                        // 处理文件内容（例如，解析绑定数据）
+                        importHandleFile(content);
+                    };
+
+                    reader.onerror = function () {
+                        console.error('文件读取失败');
+                    };
+
+                    reader.readAsText(file); // 以文本形式读取文件
+                } else {
+                    console.error('未选择文件');
+                }
+            });
+
+            // 触发文件选择对话框
+            fileInput.click();
+        }
+
+        function importHandleFile(content) {
+            // 根据文件内容进行处理（例如解析.cfg文件）
+            console.log('文件内容:', content);
+
+            // 示例：假设文件内容为特定格式，可以进行解析并处理
+            // 如果文件是标准的 ".cfg" 格式，可以解析内容并调用相应的函数
+            if (content.startsWith("//poyakong.cfg")) {
+                // 解析文件内容并加载绑定
+                loadBindingsFromFile(content);
+            } else {
+                console.error("不支持的文件格式");
+            }
+        }
+
+        // 保存按钮 - 事件监听
+        addEventListener('click', (event) => {
+            if (event.target === exportSettingsButton) {
+                exportSettings();
+            }
+        });
+
+        // 导入按钮 - 事件监听
+        addEventListener('click', (event) => {
+            if (event.target === importSettingsButton) {
+                importFile();
+            }
+        });
+
+        // 剪切板按钮 - 事件监听
+        addEventListener('click', (event) => {
+            if (event.target === clipboardButton) {
+                const copyText = extractAsCmd(bindings[0]);
+                // if copyText is empty, show a popup fail message
+                if (copyText === "") {
+                    showPopup("此设置的键位为空，无法复制到剪切板", 'popupContainer');
+                    return;
+                }
+                navigator.clipboard.writeText(copyText)
+                    .then(() => {
+                        showPopup("绑定已复制首条指令" + bindings[0].description + "到剪切板", 'popupContainer');
+                    })
+                    .catch(err => {
+                        showPopup("复制到剪切板失败" + err, 'popupContainer');
+                    });
+            }
+        });
+
+        // 关于按钮 - 事件监听
+        addEventListener('click', (event) => {
+            if (event.target === Info) {
+                showPopup("作者: 破亚空-Yakong-P\n构筑版本: 2024-11-28\n", 'popupContainer');
+                secretCounter++;
+                if (secretCounter >= 5) {
+                    secretTrigger();
+                }
+            }
+        });
+
+        // 彩蛋触发
+        function secretTrigger() {
+            advancedModeButton.classList.remove('hidden');
+            Info.classList.add('hidden');
+            showPopup("你发现了一个秘密按钮，点击它可以开启进阶模式！", 'popupContainer');
+            showPopup("你发现了一个秘密按钮，点击它可以开启进阶模式！", 'popupContainer');
+            showPopup("你发现了一个秘密按钮，点击它可以开启进阶模式！", 'popupContainer');
+            showPopup("你发现了一个秘密按钮，点击它可以开启进阶模式！", 'popupContainer');
+            showPopup("你发现了一个秘密按钮，点击它可以开启进阶模式！", 'popupContainer');
+            showPopup("你发现了一个秘密按钮，点击它可以开启进阶模式！", 'popupContainer');
+        }
+
+        // 进阶模式按钮 - 切换
+        function toggleAdvancedMode() {
+            advancedMode = !advancedMode;
+            checkAdvancedMode();
+            renderBindings();
+            RenderTemplates();
+        }
+
+        // 进阶模式按钮 - 事件监听
+        addEventListener('click', (event) => {
+            if (event.target === advancedModeButton) {
+                toggleAdvancedMode();
+            }
+        });
+
+        // 初次启动时的页面切换
+        function removeHiddens() {
+            appTitle.classList.remove('hidden'); // 显示标题
+            bindingListElement.classList.remove('hidden'); // 显示绑定列表
+            templateListElement.classList.remove('hidden'); //   显示模板列表
+            addBindingButton.classList.remove('hidden'); // 显示添加绑定按钮
+            // advancedModeButton.classList.remove('hidden'); // 显示进阶模式按钮
+            // autoSaveButton.classList.remove('hidden'); //     显示自动保存按钮
+            exportSettingsButton.classList.remove('hidden'); // 显示导出设置按钮
+            importSettingsButton.classList.remove('hidden'); // 显示导入设置按钮
+            // importSettingsButton.classList.add('warm'); //  显示导入设置按钮颜色
+            searchContainer.classList.remove('hidden'); // 显示搜索框
+            trashBin.classList.remove('hidden'); // 显示垃圾桶
+            copyBin.classList.remove('hidden'); // 显示复制桶
+            // clipboardButton.classList.remove('hidden'); // 显示复制按钮
+            clipBin.classList.remove('hidden'); // 显示剪切桶
+            Info.classList.remove('hidden'); // 显示关于按钮
+            // checkAdvancedMode(); // 检查是否开启进阶模式
+            if (advancedMode) {
+                addBindingButton.classList.remove('advanced');
+            } else {
+                addBindingButton.classList.add('advanced');
+            }
+            // checkAutoSaveMode();
+            if (!autoSaveMode) {
+                autoSaveButton.classList.add('off');
+            }
+        }
+
+        // 显示 - 按钮控制 - 进阶模式
+        function checkAdvancedMode() {
+            if (advancedMode) {
+                addBindingButton.classList.remove('advanced');
+                importSettingsButton.classList.remove('advanced');
+                advancedModeButton.classList.add('warm');
+            } else {
+                addBindingButton.classList.add('advanced');
+                importSettingsButton.classList.add('advanced');
+                advancedModeButton.classList.remove('warm');
+            }
+        }
+
+        // 显示 - 按钮控制 - 自动保存
+        function toggleAutoSave() {
+            autoSaveMode = !autoSaveMode;    // 切换自动保存模式
+            if (!autoSaveMode) {
+                autoSaveButton.classList.add('off');
+                showPopup("自动导出已关闭", 'popupContainer');
+            } else {
+                autoSaveButton.classList.remove('off');
+                showPopup("自动导出已开启", 'popupContainer');
+                exportSettings();
+            }
+        }
+
+        // 功能 - 按钮控制 - 自动保存
+        addEventListener('click', (event) => {
+            if (event.target === autoSaveButton) {
+                toggleAutoSave();
+            }
+        });
+
+        // 文件导入
+        function loadBindingsFromFile(content) {
+            // Find a line call "//template builder"
+            const templateBuilderIndex = content.indexOf('//template builder');
+            if (templateBuilderIndex >= 0) {
+                const templateBuilderStr = content.substring(templateBuilderIndex + 19).trim(); // Skip "//template builder" at the start
+                // 每四行解析一个绑定, all start with "//"
+                if (templateBuilderStr.startsWith('//')) {
+                    const bindingStr = templateBuilderStr.substring(2).trim(); // Skip "//" at the start
+                    const lines = templateBuilderStr.split('\n').filter(line => line.startsWith('//')); // 过滤出以“//”开头的行
+
+                    for (let i = 0; i < lines.length; i += 4) {
+                        // 检查是否有足够的行
+                        if (i + 3 >= lines.length) {
+                            console.warn("忽略不完整的绑定信息:", lines.slice(i));
+                            break;
+                        }
+
+                        // 提取四行对应的字段
+                        const description = lines[i].slice(2).trim(); // 去掉前缀 "//"
+                        const bind = lines[i + 1].slice(2).trim(); // 第二行作为 bind
+                        const command = lines[i + 2].slice(2).trim(); // 第三行作为 command
+                        const tags = lines[i + 3].slice(2).trim(); // 第四行作为 tags
+
+                        // 创建绑定对象并添加到数组
+                        bindings.push({ description, bind, command, tags });
+                    }
+                }
+            }
+
+            let jsonIndex = 0;
+            let jsonStr = "";
+            let firstLine = "";
+            let json = {};
+
+            // Find a line call "//json-bindings"
+            jsonIndex = content.indexOf('//json-bindings');
+            if (jsonIndex >= 0) {
+                const jsonStr = content.substring(jsonIndex + 17).trim(); // skin "//json-bindings\n"
+                // 跳过 "//"
+                if (jsonStr.startsWith('//')) {
+                    const firstLine = jsonStr.substring(2).split('\n')[0]; // Skip "//" at the start
+                    // 如果内容不是空的
+                    if (firstLine) {
+                        try {
+                            // 解析 JSON 字符串
+                            const json = JSON.parse(firstLine);
+                            // 将解析的 JSON append to the existing bindings
+                            bindings.push(...json);
+                            renderBindings();  // 渲染绑定数据
+                        } catch (e) {
+                            showPopup("不明原因导致json-bindings解析失败" + e, 'popupContainer');
+                            console.error("JSON 解析失败:" + e, e);
+                        }
+                    }
+                }
+            }
+
+            // Find a line call "//json-templates"
+            jsonIndex = content.indexOf('//json-templates');
+            if (jsonIndex >= 0) {
+                const jsonStr = content.substring(jsonIndex + 18).trim(); // skin "//json-templates\n"
+                // 跳过 "//"
+                if (jsonStr.startsWith('//')) {
+                    const firstLine = jsonStr.substring(2).split('\n')[0]; // Skip "//" at the start
+                    // 如果内容不是空的
+                    if (firstLine) {
+                        try {
+                            // 解析 JSON 字符串
+                            const json = JSON.parse(firstLine);
+                            // 将解析的 JSON append to the existing templates
+                            templates.push(...json);
+                            RenderTemplates();  // 渲染绑定数据
+                        } catch (e) {
+                            showPopup("不明原因导致json-templates解析失败" + e, 'popupContainer');
+                            console.error("JSON 解析失败:" + e, e);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 文件导出
+        function exportSettings() {
+            try {
+                // Construct the content string as three parts:
+                // 1. the first line "//poyakong.cfg"
+                // 2. for each binding, extractAsEcho() + extractAsCmd() + '\n'
+                // 3. the JSON string for the bindings array
+                const content = `//poyakong.cfg\n` +
+                    `//` + appTitle.textContent + '\n' +
+                    `//作者: 破亚空-Yakong-P\n` +
+                    `//构筑时间: ` + new Date().toLocaleString() + '\n' +
+                    '\n' +
+                    '\n' +
+                    bindings.map(binding => {
+                        // 检查 binding.bind 是否为空，空则跳过
+                        if (!binding.bind) {
+                            return '';
+                        }
+                        return extractAsEcho(binding) + extractAsCmd(binding) + '\n';
+                    }).join('') +
+                    '\n' +
+                    '\n' +
+                    `//json-bindings\n` +
+                    `//` + extractAsJson(bindings);
+                '\n' +
+                    '\n' +
+                    `//json-templates\n` +
+                    `//` + extractAsJson(templates);
+
+                // Create a file and write the content to it with name poyakong.cfg
+                const file = new File([content], 'poyakong.cfg', { type: 'text/plain' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(file);
+                link.download = 'poyakong.cfg';
+
+                // Trigger download
+                link.click();
+
+                // Show success popup
+                showPopup("保存成功，请将.cfg文件放置到CounterStrike: Global Offesive/game/csgo/cfg文件夹中，并在游戏内控制台输入exec poyakong", 'popupContainer');
+            } catch (error) {
+                // Log the error (for debugging purposes)
+                console.error("导出文件时发生错误:", error);
+
+                // Show error popup
+                showPopup("保存失败，产生了预料之外的错误 " + errer, 'popupContainer');
+            }
+        }
+
+        // Cmd
+        function extractAsCmd(binding) {
+            // check if the bind is empty
+            if (!binding.bind) {
+                return "";
+            }
+            // extract the bind and command
+            const bind = binding.bind;
+            const command = binding.command;
+            // replace the "[key]" in the command with the bind
+            let cmd = command.replace(/\[key\]/g, bind);
+            // check every \n if they missing ; as ;\n
+            cmd = cmd
+                .split('\n')
+                .map(line => (line.endsWith(';') ? line : line + ';'))
+                .join('\n');
+
+            // return the cmd
+            return cmd;
+        }
+
+        // echo
+        function extractAsEcho(binding) {
+            // check if the bind is empty
+            if (!binding.bind) {
+                return "";
+            }
+            // extract the description and keybind
+            const description = binding.description;
+            const bind = binding.bind;
+            // return the echo
+            return `echo \[${bind}\]绑定为${description}\n`;
+        }
+
+        // json
+        function extractAsJson(bindings) {
+            return JSON.stringify(bindings, null, 0);
+        }
+
+
+        // 自动调整 textarea 高度
+        function autoResizeTextarea() {
+            const textarea = document.querySelectorAll('textarea');
+            textarea.forEach((el) => {
+                el.addEventListener('input', () => {
+                    el.style.height = 'auto';  // 重置高度
+                    el.style.height = el.scrollHeight - 15 + 'px';  // 设置高度为内容的实际高度
+                });
+            });
+        }
+
+        // 初始化自动调整高度的功能
+        autoResizeTextarea();
+
+        function setupKeyDetector(binding, index) {
+            // Create a full-screen overlay for key detection
+            const keyDetectorOverlay = document.createElement('div');
+            keyDetectorOverlay.classList.add('keyDetectorOverlay');
+
+            keyDetectorOverlay.textContent = '请输入按键\n或按ESC退出';
+
+            const specialKeyMappings = {
+                // Numpad keys
+                'NumpadAdd': 'kp_plus',
+                'NumpadSubtract': 'kp_minus',
+                'NumpadMultiply': 'kp_multiply',
+                'NumpadDivide': 'kp_divide',
+                'NumpadEnter': 'kp_enter',
+                'NumpadDecimal': 'kp_del',
+
+                // Modifier keys
+                'ControlRight': 'rctrl',
+                'ShiftRight': 'rshift',
+                'AltRight': 'ralt',
+
+                // Additional special keys
+                'Tab': 'tab',
+                'CapsLock': 'capslock',
+                'Insert': 'ins',
+                'Delete': 'del',
+                'Home': 'home',
+                'End': 'end',
+                'PageUp': 'pgup',
+                'PageDown': 'pgdn',
+                'ScrollLock': 'scrolllock',
+                'Pause': 'pause'
+
+                // 'MetaRight': 'rwin'
+            };
+
+            // Numpad digit mapping
+            for (let i = 0; i <= 9; i++) {
+                specialKeyMappings[`Numpad${i}`] = `kp_${i}`;
+            }
+
+            // Add key event listener
+            const keyHandler = (event) => {
+                // Prevent default to stop propagation
+                event.preventDefault();
+
+                // Check for ESC key to exit
+                if (event.key === 'Escape') {
+                    document.body.removeChild(keyDetectorOverlay);
+                    document.removeEventListener('keydown', keyHandler);
+                    return;
+                }
+
+                // Check for modifier keys first
+                if (['Control', 'Shift', 'Alt', 'CapsLock', 'Tab'].includes(event.key)) {
+                    let modifierKey = '';
+                    if (event.ctrlKey) modifierKey = event.location === event.DOM_KEY_LOCATION_RIGHT ? 'rctrl' : 'ctrl';
+                    if (event.shiftKey) modifierKey = event.location === event.DOM_KEY_LOCATION_RIGHT ? 'rshift' : 'shift';
+                    if (event.altKey) modifierKey = event.location === event.DOM_KEY_LOCATION_RIGHT ? 'ralt' : 'alt';
+
+                    // Check for other special keys
+                    const specialKeyMap = {
+                        'CapsLock': 'capslock',
+                        'Tab': 'tab'
+                    };
+
+                    modifierKey = modifierKey || specialKeyMap[event.key];
+
+                    if (modifierKey) {
+                        bindings[index].bind = modifierKey;
+
+                        // Remove the overlay
+                        document.body.removeChild(keyDetectorOverlay);
+                        document.removeEventListener('keydown', keyHandler);
+
+                        // Re-render the bindings to reflect the change
+                        renderBindings();
+                        return;
+                    }
+                }
+
+                // Check for mappable special keys
+                const specialKey = specialKeyMappings[event.code] || specialKeyMappings[event.key];
+
+                // Determine the key to use
+                const bindKey = specialKey ||
+                    (event.key.length === 1 ? event.key :
+                        (['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12'].includes(event.key) ? event.key : null));
+
+                if (bindKey) {
+                    // Update the binding with the new key
+                    bindings[index].bind = bindKey;
+
+                    // Remove the overlay
+                    document.body.removeChild(keyDetectorOverlay);
+                    document.removeEventListener('keydown', keyHandler);
+
+                    // Re-render the bindings to reflect the change
+                    renderBindings();
+                }
+            };
+
+            // Add event listener and append to body
+            document.addEventListener('keydown', keyHandler);
+            document.body.appendChild(keyDetectorOverlay);
+        }
+
+        // builders exporter
+        function exportBuilders() {
+            const content = 
+                `//poyakong.cfg\n` +
+                `//template builder\n` +
+                bindings.map(binding => {
+                    return `//${binding.description}\n` +
+                        `//${binding.bind}\n` +
+                        `//${binding.command}\n` +
+                        `//${binding.tags}\n`;
+                }).join('');
+
+            // Create a file and write the content to it with name poyakong.cfg
+            const file = new File([content], 'poyakong.cfg', { type: 'text/plain' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(file);
+            link.download = 'poyakong.cfg';
+
+            // Trigger download
+            link.click();
+
+            // Show success popup
+            showPopup("Builder导出成功", 'popupContainer');
+        }
+    </script>
+</body>
+
+</html>
