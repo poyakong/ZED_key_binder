@@ -262,7 +262,6 @@
         #templateList {
             display: flex;
             flex-direction: column;
-            top: 9px;
             width: 80%;
             /* 改为100% */
             max-width: 600px;
@@ -593,7 +592,7 @@
 
 <body>
 
-    <h1 id="appTitle" class="hidden">CS2 按键绑定助手 for ZED (2024-11-28)</h1>
+    <h1 id="appTitle" class="hidden">CS2 按键绑定助手 for ZED (2024-11-29)</h1>
 
     <div id="dropArea">点击打开，或直接拖拽放置 📄 poyakong.cfg</div>
     <button id="addBindingButton" class="hidden advanced">+</button>
@@ -632,7 +631,7 @@
                 <textarea id="commandInput" placeholder="例如：bind [key] +forward"></textarea>
             </div>
             <div class="input-group">
-                <label for="tagInput">Tags (逗号分隔，可多行):</label>
+                <label for="tagInput">Tag (逗号分隔，可多行):</label>
                 <input type="text" id="tagInput" placeholder="例如：移动, 基本设置"></textarea>
             </div>
             <div class="button-group">
@@ -711,7 +710,7 @@
             setTimeout(() => {
                 popup.classList.add('fade-out');
                 popup.addEventListener('transitionend', () => popup.remove());
-            }, 3000); // Popup stays for 3 seconds
+            }, 5000); // Popup stays for 5 seconds
         }
 
         // 保存绑定逻辑
@@ -726,7 +725,7 @@
                     description: descriptionInput,
                     bind: bindInput || "", // bind 为空时设为默认空字符串
                     command: commandInput,
-                    tag: tagInput.split(/[,，]/).map(tag => tag.trim())
+                    tag: tagInput.split(/[,，]/).map(tag => tag.trim()).filter(tag => tag)
                 });
                 renderBindings();
                 hideBindingModal();
@@ -744,21 +743,23 @@
         // 绑定搜索功能
         searchBox.addEventListener("input", () => {
             const query = searchBox.value.trim().toLowerCase();
-            const lowerCaseQuery = query.trim().toLowerCase();
+            const queryWords = query.split(/\s+/);
+            // 过滤函数：每个单词都要在description中出现
             bindingsFilter = () => bindings.filter(binding =>
-                binding.description.toLowerCase().includes(lowerCaseQuery)
+                queryWords.every(word => binding.description.toLowerCase().includes(word)) // 所有单词都需要匹配
             );
+
             templatesFilter = () => templates.filter(template =>
-                template.description.toLowerCase().includes(lowerCaseQuery)
+                queryWords.every(word => template.description.toLowerCase().includes(word)) // 所有单词都需要匹配
             );
             renderBindings(); // 根据筛选结果重新渲染
-            RenderTemplates();
+            renderTemplates();
         });
 
         // 重写 renderBindings 以确保每次渲染后重新绑定拖放事件
-        function renderBindings(filteredBindings = bindings) {
+        function renderBindings(passingBindings = bindings) {
             // 原有的渲染逻辑保持不变
-            const originalRenderResult = originalRenderBindings(filteredBindings);
+            const originalRenderResult = originalRenderBindings();
 
             // 重新绑定拖放事件
             attachDragEvents();
@@ -768,18 +769,25 @@
 
 
         // 核心渲染
-        function originalRenderBindings(filteredBindings = bindingsFilter) {
+        function originalRenderBindings(passingBindings = bindingsFilter) {
+            // 如果 passingBindings 是函数，则调用它获取结果
+            const dataToRender = typeof passingBindings === 'function'
+                ? passingBindings()
+                : passingBindings;
+
             if (!advancedMode) {
+
                 bindingListElement.innerHTML = ''; // Clear existing content
                 bindingListElement.classList.add('drag-list');
 
-                filteredBindings.forEach((filteredBinding, filteredIndex) => {
-                    const originalIndex = bindings.indexOf(filteredBinding); // 获取原始索引
+                dataToRender.forEach((bindingTemp, bindingTempIndex) => {
+                    const originalIndex = bindings.indexOf(bindingTemp); // 获取原始索引
                     const bindingItem = document.createElement('div');
                     bindingItem.setAttribute('data-original-index', originalIndex); // 存储原始索引
                     bindingItem.classList.add('binding-item', 'draggable');
                     bindingItem.setAttribute('draggable', true);
-                    bindingItem.id = `binding-${filteredIndex}`;
+                    bindingItem.id = `binding-${bindingTempIndex}`;
+                    bindingItem.setAttribute('title', bindingTemp.description); // 添加title = description
 
                     // Create a container for layout
                     const itemContent = document.createElement('div');
@@ -789,7 +797,7 @@
 
                     // Description text (left-aligned)
                     const descriptionSpan = document.createElement('span');
-                    descriptionSpan.textContent = filteredBinding.description;
+                    descriptionSpan.textContent = bindingTemp.description;
                     descriptionSpan.style.flex = '1';
                     descriptionSpan.style.textOverflow = 'ellipsis';
                     descriptionSpan.style.whiteSpace = 'nowrap';
@@ -798,11 +806,19 @@
 
                     // Key setup button (right-aligned)
                     const keyButton = document.createElement('button');
-                    keyButton.textContent = filteredBinding.bind || '设置';
+                    keyButton.textContent = bindingTemp.bind || '设置';
 
                     // Add click event to setup key
                     keyButton.addEventListener('click', () => {
-                        setupKeyDetector(filteredBinding, filteredIndex);
+                        setupKeyDetector().then((key) => {
+                            if (key) {
+                                // 功能上是一样的
+                                // bindingTemp[bindingTempIndex].bind = key;
+                                bindings[originalIndex].bind = key;
+                                renderBindings();
+                                showPopup(`已更改 "${key}" 作为绑定键！`, 'popupContainer');
+                            }
+                        });
                     });
 
                     // Drag and drop event listeners
@@ -840,8 +856,8 @@
             } else {
                 // Advanced mode with editable fields
                 bindingListElement.innerHTML = '';
-                filteredBindings.forEach((filteredBinding, filteredIndex) => {
-                    const originalIndex = bindings.indexOf(filteredBinding); // 获取原始索引
+                dataToRender.forEach((bindingTemp, bindingTempIndex) => {
+                    const originalIndex = bindings.indexOf(bindingTemp); // 获取原始索引
                     const bindingItem = document.createElement('div');
                     bindingItem.setAttribute('data-original-index', originalIndex); // 存储原始索引
                     bindingItem.classList.add('binding-item_advanced');
@@ -853,36 +869,36 @@
                     // Description input (single line)
                     const descriptionInput = document.createElement('input');
                     descriptionInput.type = 'text';
-                    descriptionInput.value = filteredBinding.description;
+                    descriptionInput.value = bindingTemp.description;
                     descriptionInput.placeholder = 'Description';
                     descriptionInput.classList.add('advanced-input', 'single-line');
 
                     // Bind input (single line)
                     const bindInput = document.createElement('input');
                     bindInput.type = 'text';
-                    bindInput.value = filteredBinding.bind;
+                    bindInput.value = bindingTemp.bind;
                     bindInput.placeholder = 'Bind Key';
                     bindInput.classList.add('advanced-input', 'single-line');
 
                     // Command input (multi-line)
                     const commandInput = document.createElement('textarea');
-                    commandInput.value = filteredBinding.command;
+                    commandInput.value = bindingTemp.command;
                     commandInput.placeholder = 'Command';
                     commandInput.classList.add('advanced-input', 'multi-line');
 
-                    // Tags input (single line)
+                    // Tag input (single line)
                     const tagInput = document.createElement('input');
                     tagInput.type = 'text';
-                    tagInput.value = filteredBinding.tag.join(', ');
-                    tagInput.placeholder = 'Tags (comma-separated)';
+                    tagInput.value = bindingTemp.tag.join(', ');
+                    tagInput.placeholder = 'Tag (comma-separated)';
                     tagInput.classList.add('advanced-input', 'single-line');
 
                     // Add change event listeners to update the bindings
                     const updateBinding = () => {
-                        bindings[filteredIndex].description = descriptionInput.value;
-                        bindings[filteredIndex].bind = bindInput.value;
-                        bindings[filteredIndex].command = commandInput.value;
-                        bindings[filteredIndex].tag = tagInput.value.split(/[,，]/).map(tag => tag.trim()).filter(tag => tag);
+                        bindings[originalIndex].description = descriptionInput.value;
+                        bindings[originalIndex].bind = bindInput.value;
+                        bindings[originalIndex].command = commandInput.value;
+                        bindings[originalIndex].tag = tagInput.value.split(/[,，]/).map(tag => tag.trim()).filter(tag => tag);
                     };
 
                     descriptionInput.addEventListener('change', updateBinding);
@@ -903,7 +919,7 @@
                         { label: 'Description:', input: descriptionInput },
                         { label: 'Bind:', input: bindInput },
                         { label: 'Command:', input: commandInput },
-                        { label: 'Tags:', input: tagInput }
+                        { label: 'Tag:', input: tagInput }
                     ];
 
                     fields.forEach(field => {
@@ -964,19 +980,25 @@
         }
 
         // 核心渲染
-        function RenderTemplates(templatesFilter) {
+        function renderTemplates(passingTemplates = templatesFilter) {
+            // 如果 passingTemplates 是函数，则调用它获取结果
+            const dataToRender = typeof passingTemplates === 'function'
+                ? passingTemplates()
+                : passingTemplates;
+
             if (!advancedMode) {
                 templateListElement.innerHTML = ''; // Clear existing content
                 templateListElement.classList.add('drag-list');
 
-                templates.forEach((filteredTemplates, filteredIndex) => {
-                    const originalIndex = templates.indexOf(filteredTemplates); // 获取原始索引
+                dataToRender.forEach((templateTemp, templateTempIndex) => {
+                    const originalIndex = templates.indexOf(templateTemp); // 获取原始索引
                     const templateItem = document.createElement('div');
                     templateItem.setAttribute('data-original-index', originalIndex); // 存储原始索引
                     templateItem.classList.add('template-item');
+                    templateItem.setAttribute('title', templateTemp.description);// 添加title = description
                     // templateItem.classList.add('draggable');
                     // templateItem.setAttribute('draggable', true);
-                    templateItem.id = `template-${filteredIndex}`;
+                    templateItem.id = `template-${templateTempIndex}`;
 
                     // Create a container for layout
                     const itemContent = document.createElement('div');
@@ -986,7 +1008,7 @@
 
                     // Description text (left-aligned)
                     const descriptionSpan = document.createElement('span');
-                    descriptionSpan.textContent = filteredTemplates.description;
+                    descriptionSpan.textContent = templateTemp.description;
                     descriptionSpan.style.flex = '1';
                     descriptionSpan.style.textOverflow = 'ellipsis';
                     descriptionSpan.style.whiteSpace = 'nowrap';
@@ -995,13 +1017,24 @@
 
                     // Key setup button (right-aligned)
                     const keyButton = document.createElement('button');
-                    keyButton.textContent = filteredTemplates.bind || '设置';
+                    keyButton.textContent = templateTemp.bind || '设置';
 
                     // Add click event to setup key
                     keyButton.addEventListener('click', () => {
-                        setupKeyDetector(filteredTemplates, filteredIndex);
+                        setupKeyDetector().then((key) => {
+                            if (key) {
+                                const newBinding = {
+                                    description: templateTemp.description,
+                                    bind: key,
+                                    command: templateTemp.command,
+                                    tag: templateTemp.tag
+                                };
+                                bindings.push(newBinding);
+                                renderBindings();
+                                showPopup(templateTemp.description + "已添加至绑定列表", 'popupContainer');
+                            }
+                        });
                     });
-
                     // Drag and drop event listeners
                     // templateItem.addEventListener('dragstart', dragStart);
                     // templateItem.addEventListener('dragover', dragOver);
@@ -1037,8 +1070,8 @@
             } else {
                 // Advanced mode with editable fields
                 templateListElement.innerHTML = '';
-                templates.forEach((filteredTemplates, filteredIndex) => {
-                    const originalIndex = templates.indexOf(filteredTemplates); // 获取原始索引
+                dataToRender.forEach((templateTemp, templateTempIndex) => {
+                    const originalIndex = templates.indexOf(templateTemp); // 获取原始索引
                     const templateItem = document.createElement('div');
                     templateItem.setAttribute('data-original-index', originalIndex); // 存储原始索引
                     templateItem.classList.add('template-item_advanced');
@@ -1050,36 +1083,44 @@
                     // Description input (single line)
                     const descriptionInput = document.createElement('input');
                     descriptionInput.type = 'text';
-                    descriptionInput.value = filteredTemplates.description;
+                    descriptionInput.value = templateTemp.description;
                     descriptionInput.placeholder = 'Description';
                     descriptionInput.classList.add('advanced-input', 'single-line');
 
                     // Bind input (single line)
                     const bindInput = document.createElement('input');
                     bindInput.type = 'text';
-                    bindInput.value = filteredTemplates.bind;
+                    bindInput.value = templateTemp.bind;
                     bindInput.placeholder = 'Bind Key';
                     bindInput.classList.add('advanced-input', 'single-line');
 
                     // Command input (multi-line)
                     const commandInput = document.createElement('textarea');
-                    commandInput.value = filteredTemplates.command;
+                    commandInput.value = templateTemp.command;
                     commandInput.placeholder = 'Command';
                     commandInput.classList.add('advanced-input', 'multi-line');
 
-                    // Tags input (single line)
+                    // Tag input (single line)
                     const tagInput = document.createElement('input');
                     tagInput.type = 'text';
-                    tagInput.value = filteredTemplates.tag.join(', ');
-                    tagInput.placeholder = 'Tags (comma-separated)';
+                    tagInput.value = templateTemp.tag.join(', ');
+                    tagInput.placeholder = 'Tag (comma-separated)';
                     tagInput.classList.add('advanced-input', 'single-line');
+
+                    // Debug
+                    // if (!templateTemp) {
+                    //     console.log("templateTemp is null as tempIndex:" + templateTempIndex + " originalIndex:" + originalIndex);
+                    // }
+                    // if (!Array.isArray(templateTemp.tag)) {
+                    //     console.log("templateTemp.tag is not an array as tempIndex:" + templateTempIndex + " originalIndex:" + originalIndex);
+                    // }
 
                     // Add change event listeners to update the templates
                     const updateTemplates = () => {
-                        templates[filteredIndex].description = descriptionInput.value;
-                        templates[filteredIndex].bind = bindInput.value;
-                        templates[filteredIndex].command = commandInput.value;
-                        templates[filteredIndex].tag = tagInput.value.split(/[,，]/).map(tag => tag.trim()).filter(tag => tag);
+                        templates[originalIndex].description = descriptionInput.value;
+                        templates[originalIndex].bind = bindInput.value;
+                        templates[originalIndex].command = commandInput.value;
+                        templates[originalIndex].tag = tagInput.value.split(/[,，]/).map(tag => tag.trim()).filter(tag => tag);
                     };
 
                     descriptionInput.addEventListener('change', updateTemplates);
@@ -1100,7 +1141,7 @@
                         { label: 'Description:', input: descriptionInput },
                         { label: 'Bind:', input: bindInput },
                         { label: 'Command:', input: commandInput },
-                        { label: 'Tags:', input: tagInput }
+                        { label: 'Tag:', input: tagInput }
                     ];
 
                     fields.forEach(field => {
@@ -1399,15 +1440,15 @@
                         dropArea.style.display = 'none';
                         removeHiddens();
                         loadBindingsFromFile(content);
-                        showPopup("欢迎使用CS2按键助手！", 'popupContainer');
+                        showPopup("欢迎使用CS2按键助手！" + new Date().toLocaleString(), 'popupContainer'); // 显示欢迎信息 + 当前的时间
                     }, 500);
                 } else {
-                    dropArea.textContent = '似乎是不受支持的格式\n请确保载入poyakong.cfg格式的文件';
+                    dropArea.textContent = '似乎是不受支持的格式\r\n请确保载入poyakong.cfg格式的文件';
                 }
             };
 
             reader.onerror = function () {
-                dropArea.textContent = '无法读取文件\n请确保载入正确的文本格式的poyakong.cfg文件';
+                dropArea.textContent = '无法读取文件\r\n请确保载入正确的文本格式的poyakong.cfg文件';
             };
 
             reader.readAsText(file, 'UTF-8');
@@ -1428,7 +1469,17 @@
                     reader.onload = function (e) {
                         const content = e.target.result; // 获取文件内容
                         // 处理文件内容（例如，解析绑定数据）
-                        importHandleFile(content);
+                        // 根据文件内容进行处理（例如解析.cfg文件）
+                        console.log('文件内容:', content);
+
+                        // 示例：假设文件内容为特定格式，可以进行解析并处理
+                        // 如果文件是标准的 ".cfg" 格式，可以解析内容并调用相应的函数
+                        if (content.startsWith("//poyakong.cfg")) {
+                            // 解析文件内容并加载绑定
+                            loadBindingsFromFile(content);
+                        } else {
+                            console.error("不支持的文件格式");
+                        }
                     };
 
                     reader.onerror = function () {
@@ -1443,20 +1494,6 @@
 
             // 触发文件选择对话框
             fileInput.click();
-        }
-
-        function importHandleFile(content) {
-            // 根据文件内容进行处理（例如解析.cfg文件）
-            console.log('文件内容:', content);
-
-            // 示例：假设文件内容为特定格式，可以进行解析并处理
-            // 如果文件是标准的 ".cfg" 格式，可以解析内容并调用相应的函数
-            if (content.startsWith("//poyakong.cfg")) {
-                // 解析文件内容并加载绑定
-                loadBindingsFromFile(content);
-            } else {
-                console.error("不支持的文件格式");
-            }
         }
 
         // 保存按钮 - 事件监听
@@ -1495,7 +1532,7 @@
         // 关于按钮 - 事件监听
         addEventListener('click', (event) => {
             if (event.target === Info) {
-                showPopup("作者: 破亚空-Yakong-P\n构筑版本: 2024-11-28\n", 'popupContainer');
+                showPopup("作者: 破亚空-Yakong-P\r\n构筑版本: 2024-11-29\r\n", 'popupContainer');
                 secretCounter++;
                 if (secretCounter >= 5) {
                     secretTrigger();
@@ -1520,7 +1557,7 @@
             advancedMode = !advancedMode;
             checkAdvancedMode();
             renderBindings();
-            RenderTemplates();
+            renderTemplates();
         }
 
         // 进阶模式按钮 - 事件监听
@@ -1593,17 +1630,21 @@
         });
 
         // 文件导入
-        function loadBindingsFromFile(content) {
+        function loadBindingsFromFile(passContent) {
+            // Debug 导入时清洗文本内容
+            const content = passContent
+                .replace(/\r\n/g, '\n') // 先处理 CRLF
+                .replace(/\r/g, '\n') // 处理老式 Mac 风格的 CR
+                .replace(/\n/g, '\r\n'); // 统一换成 Windows 风格的 CRLF
             // Find a line call "//template builder"
             const templateBuilderIndex = content.indexOf('//template builder');
             if (templateBuilderIndex >= 0) {
-                const templateBuilderStr = content.substring(templateBuilderIndex + 19).trim(); // Skip "//template builder" at the start
+                let lines = content.substring(templateBuilderIndex).split('\r\n'); // Skip "//template builder" at the start
                 // 每四行解析一个绑定, all start with "//"
-                if (templateBuilderStr.startsWith('//')) {
-                    const bindingStr = templateBuilderStr.substring(2).trim(); // Skip "//" at the start
-                    const lines = templateBuilderStr.split('\n').filter(line => line.startsWith('//')); // 过滤出以“//”开头的行
+                if (lines[1] && lines[1].startsWith('//')) {
+                    lines = lines.filter(line => line.startsWith('//')); // 过滤出以“//”开头的行
 
-                    for (let i = 0; i < lines.length; i += 4) {
+                    for (let i = 1; i < lines.length; i += 4) {
                         // 检查是否有足够的行
                         if (i + 3 >= lines.length) {
                             console.warn("忽略不完整的绑定信息:", lines.slice(i));
@@ -1614,31 +1655,27 @@
                         const description = lines[i].slice(2).trim(); // 去掉前缀 "//"
                         const bind = lines[i + 1].slice(2).trim(); // 第二行作为 bind
                         const command = lines[i + 2].slice(2).trim(); // 第三行作为 command
-                        const tags = lines[i + 3].slice(2).trim(); // 第四行作为 tags
+                        const tag = lines[i + 3].slice(2).trim().split(/[,，]/).map(tag => tag.trim()).filter(tag => tag);; // 第四行作为 tag
 
                         // 创建绑定对象并添加到数组
-                        bindings.push({ description, bind, command, tags });
+                        templates.push({ description, bind, command, tag });
                     }
+                    renderTemplates();  // 渲染模板数据
                 }
             }
 
-            let jsonIndex = 0;
-            let jsonStr = "";
-            let firstLine = "";
-            let json = {};
-
             // Find a line call "//json-bindings"
-            jsonIndex = content.indexOf('//json-bindings');
+            let jsonIndex = content.indexOf('//json-bindings');
             if (jsonIndex >= 0) {
-                const jsonStr = content.substring(jsonIndex + 17).trim(); // skin "//json-bindings\n"
+                const lines = content.substring(jsonIndex).split('\r\n'); //.map(line => line.trim()); //冗余保险 // skin "//json-bindings"
                 // 跳过 "//"
-                if (jsonStr.startsWith('//')) {
-                    const firstLine = jsonStr.substring(2).split('\n')[0]; // Skip "//" at the start
+                if (lines[1] && lines[1].startsWith('//')) {
+                    const jsonStr = lines[1].substring(2).trim(); // Skip "//" at the start
                     // 如果内容不是空的
-                    if (firstLine) {
+                    if (jsonStr) {
                         try {
                             // 解析 JSON 字符串
-                            const json = JSON.parse(firstLine);
+                            const json = JSON.parse(jsonStr);
                             // 将解析的 JSON append to the existing bindings
                             bindings.push(...json);
                             renderBindings();  // 渲染绑定数据
@@ -1653,18 +1690,18 @@
             // Find a line call "//json-templates"
             jsonIndex = content.indexOf('//json-templates');
             if (jsonIndex >= 0) {
-                const jsonStr = content.substring(jsonIndex + 18).trim(); // skin "//json-templates\n"
+                const lines = content.substring(jsonIndex).split('\r\n'); //.map(line => line.trim()); //冗余保险 // skin "//json-templates"
                 // 跳过 "//"
-                if (jsonStr.startsWith('//')) {
-                    const firstLine = jsonStr.substring(2).split('\n')[0]; // Skip "//" at the start
+                if (lines[1] && lines[1].startsWith('//')) {
+                    const jsonStr = lines[1].substring(2).trim(); // Skip "//" at the start
                     // 如果内容不是空的
-                    if (firstLine) {
+                    if (jsonStr) {
                         try {
                             // 解析 JSON 字符串
-                            const json = JSON.parse(firstLine);
+                            const json = JSON.parse(jsonStr);
                             // 将解析的 JSON append to the existing templates
                             templates.push(...json);
-                            RenderTemplates();  // 渲染绑定数据
+                            renderTemplates();  // 渲染绑定数据
                         } catch (e) {
                             showPopup("不明原因导致json-templates解析失败" + e, 'popupContainer');
                             console.error("JSON 解析失败:" + e, e);
@@ -1679,28 +1716,48 @@
             try {
                 // Construct the content string as three parts:
                 // 1. the first line "//poyakong.cfg"
-                // 2. for each binding, extractAsEcho() + extractAsCmd() + '\n'
+                // 2. for each binding, extractAsEcho() + extractAsCmd() + '\r\n'
                 // 3. the JSON string for the bindings array
-                const content = `//poyakong.cfg\n` +
-                    `//` + appTitle.textContent + '\n' +
-                    `//作者: 破亚空-Yakong-P\n` +
-                    `//构筑时间: ` + new Date().toLocaleString() + '\n' +
-                    '\n' +
-                    '\n' +
+                const content = `//poyakong.cfg\r\n` +
+                    `//` + appTitle.textContent + '\r\n' +
+                    `//作者: 破亚空-Yakong-P\r\n` +
+                    `//文件构筑: ` + new Date().toLocaleString() + '\r\n' +
+                    '\r\n' +
+                    '\r\n' +
+                    `//使用方法：\r\n` +
+                    `//1、将本文件放置于CounterStrike: Global Offesive/game/csgo/cfg文件夹中\r\n` +
+                    `//2、打开游戏\r\n` +
+                    `//3、在CS2设置里，启用控制台\r\n` +
+                    `//4、在控制台里，输入exec poyakong.cfg，然后回车确认\r\n` +
+                    `//5、如果导入成功，则会显示一堆的绑定的信息\r\n` +
+                    `//6、如果导入失败，则会产生一条执行失败的信息：[InputService] exec: couldn't exec '{*}cfg/xxx.cfg', unable to read file\r\n` +
+                    '\r\n' +
+                    '\r\n' +
+                    // 导出绑定
                     bindings.map(binding => {
                         // 检查 binding.bind 是否为空，空则跳过
                         if (!binding.bind) {
                             return '';
                         }
-                        return extractAsEcho(binding) + extractAsCmd(binding) + '\n';
+                        return `//` + binding.description + '\r\n' + extractAsCmd(binding) + '\r\n';
                     }).join('') +
-                    '\n' +
-                    '\n' +
-                    `//json-bindings\n` +
-                    `//` + extractAsJson(bindings);
-                '\n' +
-                    '\n' +
-                    `//json-templates\n` +
+                    '\r\n' +
+                    '\r\n' +
+                    // 生成echo
+                    bindings.map(binding => {
+                        // 检查 binding.templates 是否为空，空则跳过
+                        if (!binding.bind) {
+                            return '';
+                        }
+                        return extractAsEcho(binding);
+                    }).join('') +
+                    '\r\n' +
+                    '\r\n' +
+                    `//json-bindings\r\n` +
+                    `//` + extractAsJson(bindings) +
+                    '\r\n' +
+                    '\r\n' +
+                    `//json-templates\r\n` +
                     `//` + extractAsJson(templates);
 
                 // Create a file and write the content to it with name poyakong.cfg
@@ -1734,11 +1791,11 @@
             const command = binding.command;
             // replace the "[key]" in the command with the bind
             let cmd = command.replace(/\[key\]/g, bind);
-            // check every \n if they missing ; as ;\n
+            // check every \r\n if they missing ; as ;\r\n
             cmd = cmd
-                .split('\n')
+                .split('\r\n')
                 .map(line => (line.endsWith(';') ? line : line + ';'))
-                .join('\n');
+                .join('\r\n');
 
             // return the cmd
             return cmd;
@@ -1754,7 +1811,7 @@
             const description = binding.description;
             const bind = binding.bind;
             // return the echo
-            return `echo \[${bind}\]绑定为${description}\n`;
+            return `echo \"\[${bind}\]绑定为${description}\"\r\n`;
         }
 
         // json
@@ -1777,123 +1834,121 @@
         // 初始化自动调整高度的功能
         autoResizeTextarea();
 
-        function setupKeyDetector(binding, index) {
-            // Create a full-screen overlay for key detection
-            const keyDetectorOverlay = document.createElement('div');
-            keyDetectorOverlay.classList.add('keyDetectorOverlay');
+        function setupKeyDetector() {
+            return new Promise((resolve) => {
+                // Create a full-screen overlay for key detection
+                const keyDetectorOverlay = document.createElement('div');
+                keyDetectorOverlay.classList.add('keyDetectorOverlay');
 
-            keyDetectorOverlay.textContent = '请输入按键\n或按ESC退出';
+                keyDetectorOverlay.textContent = '请输入按键\r\n或按ESC退出';
 
-            const specialKeyMappings = {
-                // Numpad keys
-                'NumpadAdd': 'kp_plus',
-                'NumpadSubtract': 'kp_minus',
-                'NumpadMultiply': 'kp_multiply',
-                'NumpadDivide': 'kp_divide',
-                'NumpadEnter': 'kp_enter',
-                'NumpadDecimal': 'kp_del',
+                const specialKeyMappings = {
+                    // Numpad keys
+                    'NumpadAdd': 'kp_plus',
+                    'NumpadSubtract': 'kp_minus',
+                    'NumpadMultiply': 'kp_multiply',
+                    'NumpadDivide': 'kp_divide',
+                    'NumpadEnter': 'kp_enter',
+                    'NumpadDecimal': 'kp_del',
 
-                // Modifier keys
-                'ControlRight': 'rctrl',
-                'ShiftRight': 'rshift',
-                'AltRight': 'ralt',
+                    // Modifier keys
+                    'ControlRight': 'rctrl',
+                    'ShiftRight': 'rshift',
+                    'AltRight': 'ralt',
 
-                // Additional special keys
-                'Tab': 'tab',
-                'CapsLock': 'capslock',
-                'Insert': 'ins',
-                'Delete': 'del',
-                'Home': 'home',
-                'End': 'end',
-                'PageUp': 'pgup',
-                'PageDown': 'pgdn',
-                'ScrollLock': 'scrolllock',
-                'Pause': 'pause'
+                    // Additional special keys
+                    'Tab': 'tab',
+                    'CapsLock': 'capslock',
+                    'Insert': 'ins',
+                    'Delete': 'del',
+                    'Home': 'home',
+                    'End': 'end',
+                    'PageUp': 'pgup',
+                    'PageDown': 'pgdn',
+                    'ScrollLock': 'scrolllock',
+                    'Pause': 'pause'
 
-                // 'MetaRight': 'rwin'
-            };
+                    // 'MetaRight': 'rwin'
+                };
 
-            // Numpad digit mapping
-            for (let i = 0; i <= 9; i++) {
-                specialKeyMappings[`Numpad${i}`] = `kp_${i}`;
-            }
-
-            // Add key event listener
-            const keyHandler = (event) => {
-                // Prevent default to stop propagation
-                event.preventDefault();
-
-                // Check for ESC key to exit
-                if (event.key === 'Escape') {
-                    document.body.removeChild(keyDetectorOverlay);
-                    document.removeEventListener('keydown', keyHandler);
-                    return;
+                // Numpad digit mapping
+                for (let i = 0; i <= 9; i++) {
+                    specialKeyMappings[`Numpad${i}`] = `kp_${i}`;
                 }
 
-                // Check for modifier keys first
-                if (['Control', 'Shift', 'Alt', 'CapsLock', 'Tab'].includes(event.key)) {
-                    let modifierKey = '';
-                    if (event.ctrlKey) modifierKey = event.location === event.DOM_KEY_LOCATION_RIGHT ? 'rctrl' : 'ctrl';
-                    if (event.shiftKey) modifierKey = event.location === event.DOM_KEY_LOCATION_RIGHT ? 'rshift' : 'shift';
-                    if (event.altKey) modifierKey = event.location === event.DOM_KEY_LOCATION_RIGHT ? 'ralt' : 'alt';
+                // Add key event listener
+                const keyHandler = (event) => {
+                    // Prevent default to stop propagation
+                    event.preventDefault();
 
-                    // Check for other special keys
-                    const specialKeyMap = {
-                        'CapsLock': 'capslock',
-                        'Tab': 'tab'
-                    };
+                    // Check for ESC key to exit
+                    if (event.key === 'Escape') {
+                        document.body.removeChild(keyDetectorOverlay);
+                        document.removeEventListener('keydown', keyHandler);
+                        resolve(null); // 返回 null 表示取消
+                        return;
+                    }
 
-                    modifierKey = modifierKey || specialKeyMap[event.key];
+                    // Check for modifier keys first
+                    if (['Control', 'Shift', 'Alt', 'CapsLock', 'Tab'].includes(event.key)) {
+                        let modifierKey = '';
+                        if (event.ctrlKey) modifierKey = event.location === event.DOM_KEY_LOCATION_RIGHT ? 'rctrl' : 'ctrl';
+                        if (event.shiftKey) modifierKey = event.location === event.DOM_KEY_LOCATION_RIGHT ? 'rshift' : 'shift';
+                        if (event.altKey) modifierKey = event.location === event.DOM_KEY_LOCATION_RIGHT ? 'ralt' : 'alt';
 
-                    if (modifierKey) {
-                        bindings[index].bind = modifierKey;
+                        // Check for other special keys
+                        const specialKeyMap = {
+                            'CapsLock': 'capslock',
+                            'Tab': 'tab'
+                        };
+
+                        modifierKey = modifierKey || specialKeyMap[event.key];
+
+                        if (modifierKey) {
+                            // Remove the overlay
+                            document.body.removeChild(keyDetectorOverlay);
+                            document.removeEventListener('keydown', keyHandler);
+                            resolve(modifierKey);
+                            return;
+                        }
+                    }
+
+                    // Check for mappable special keys
+                    const specialKey = specialKeyMappings[event.code] || specialKeyMappings[event.key];
+
+                    // Determine the key to use
+                    const bindKey = specialKey ||
+                        (event.key.length === 1 ? event.key :
+                            (['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12'].includes(event.key) ? event.key : null));
+
+                    if (bindKey) {
 
                         // Remove the overlay
                         document.body.removeChild(keyDetectorOverlay);
                         document.removeEventListener('keydown', keyHandler);
 
-                        // Re-render the bindings to reflect the change
-                        renderBindings();
+                        //
+                        resolve(bindKey);
                         return;
                     }
-                }
+                };
 
-                // Check for mappable special keys
-                const specialKey = specialKeyMappings[event.code] || specialKeyMappings[event.key];
-
-                // Determine the key to use
-                const bindKey = specialKey ||
-                    (event.key.length === 1 ? event.key :
-                        (['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12'].includes(event.key) ? event.key : null));
-
-                if (bindKey) {
-                    // Update the binding with the new key
-                    bindings[index].bind = bindKey;
-
-                    // Remove the overlay
-                    document.body.removeChild(keyDetectorOverlay);
-                    document.removeEventListener('keydown', keyHandler);
-
-                    // Re-render the bindings to reflect the change
-                    renderBindings();
-                }
-            };
-
-            // Add event listener and append to body
-            document.addEventListener('keydown', keyHandler);
-            document.body.appendChild(keyDetectorOverlay);
+                // Add event listener and append to body
+                document.addEventListener('keydown', keyHandler);
+                document.body.appendChild(keyDetectorOverlay);
+            });
         }
 
         // builders exporter
         function exportBuilders() {
-            const content = 
-                `//poyakong.cfg\n` +
-                `//template builder\n` +
+            const content =
+                `//poyakong.cfg\r\n` +
+                `//template builder\r\n` +
                 bindings.map(binding => {
-                    return `//${binding.description}\n` +
-                        `//${binding.bind}\n` +
-                        `//${binding.command}\n` +
-                        `//${binding.tags}\n`;
+                    return `//${binding.description}\r\n` +
+                        `//${binding.bind}\r\n` +
+                        `//${binding.command}\r\n` +
+                        `//${binding.tag}\r\n`;
                 }).join('');
 
             // Create a file and write the content to it with name poyakong.cfg
@@ -1907,6 +1962,19 @@
 
             // Show success popup
             showPopup("Builder导出成功", 'popupContainer');
+        }
+
+        // window.onload for 生产环境
+        window.onload = () => {
+            const fileContent = "//poyakong.cfg\r\n//CS2 按键绑定助手 for ZED (2024-11-28)\r\n//作者: 破亚空-Yakong-P\r\n//文件构筑: 2024/11/29 23:16:41\r\n\r\n\r\n//使用方法：\r\n//1、将本文件放置于CounterStrike: Global Offesive/game/csgo/cfg文件夹中\r\n//2、打开游戏\r\n//3、在CS2设置里，启用控制台\r\n//4、在控制台里，输入exec poyakong.cfg，然后回车确认\r\n//5、如果导入成功，则会显示一堆的绑定的信息\r\n//6、如果导入失败，则会产生一条执行失败的信息：[InputService] exec: couldn't exec '{*}cfg/xxx.cfg', unable to read file\r\n\r\n\r\n\r\n\r\n\r\n\r\n//json-templates\r\n//[{\"description\":\"[公告]⚠️大部分指令的使用教程：1、点击设置，然后按下键盘要绑定的按键 2、拖拽你要用的指令，至左上角，自动复制到剪切板 3、进入游戏，在控制台内[ctrl+v]，[enter]回车运行\",\"bind\":\"\",\"command\":\"\",\"tag\":[]},{\"description\":\"[公告]⚠️高级绑定使用教程：1、将高级指令粘贴至autoexec.cfg文件里 2、CS2启动项添加+exec autoexec.cfg\",\"bind\":\"\",\"command\":\"\",\"tag\":[]},{\"description\":\"[ZED][购买道具]回血针(电击枪)\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy taser\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买道具]高爆手雷HE\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy hegrenade\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买道具]冰冻雷(烟雾弹)\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy smokegrenade\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买道具]燃烧瓶(燃烧弹)\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy molotov\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买道具]补充护甲$1000\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy vesthelm\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][步枪]ak47\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_ak47\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][步枪]m4a1\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_m4a1\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][步枪]m4a4\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_m4a4\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][步枪]SG556\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_sg556\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][步枪]AUG\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_aug\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][步枪]法玛斯Famas\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_famas\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][步枪]咖喱Galilar - 加利尔AR\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_galilar\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][机枪]内格夫Negev\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_negev\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][机枪]M249\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_m249\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][狙击步枪]SSG-08\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_ssg08\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][狙击步枪]AWP\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_awp\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][狙击步枪]SCAR-20\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_scar20\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][狙击步枪]G3SG1\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_g3sg1\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]Tec-9\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_tec9\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]Five-seven\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_Fiveseven\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]p250\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_p250\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]沙鹰Deagle\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_deagle\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]左轮Revolver\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_revolver\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]双枪Elite\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_elite\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]CZ-75\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_cz\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]usp\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_usp_silencer\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]Glock-18\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_glock188\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]hkp2000\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_p2000\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][霰弹枪]新星Nova\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_nova\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][霰弹枪]Mag-7\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_mag7\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][霰弹枪]短喷sawedoff\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_sawedoff\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][霰弹枪]连喷xm1014\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_xm1014\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][冲锋枪]野牛Bizon\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_bizon\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][冲锋枪]MP9\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_mp9\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][冲锋枪]P90\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_p90\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][冲锋枪]MP7\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_mp7\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][冲锋枪]MP5-SD\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_mp5\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][冲锋枪]UMP-45\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_ump45\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][冲锋枪]Mac-10\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_mac10\\\";\",\"tag\":[]},{\"description\":\"[ZED][❔]朝(队友/敌人)按下时，产生一个会跟踪的红色标记\",\"bind\":\"\",\"command\":\"bind [key] \\\"cl_ent_viewoffset\\\";\\n\",\"tag\":[]},{\"description\":\"[ZED][画面显示]开启/关闭血迹显示!toggledecals\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_toggledecals\\\";\",\"tag\":[]},{\"description\":\"[ZED][快捷功能]查看自己有没有特殊封禁!status\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_status\\\";\",\"tag\":[]},{\"description\":\"[ZED][快捷功能]作为僵尸传送回出生点!ztele\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_ztele\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]修复悬浮菜单位置飘走消失的问题!resethud   [菜单修复]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_resethud\\\";\",\"tag\":[]},{\"description\":\"[ZED][地图]呼出指挥投票菜单!vl\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_vl\\\";\",\"tag\":[]},{\"description\":\"[ZED][投票]投票延长地图!ve\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_ve\\\";\",\"tag\":[]},{\"description\":\"[ZED][地图]查看地图剩余延长次数!extendsleft\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_extendsleft\\\";\",\"tag\":[]},{\"description\":\"[ZED][地图]查看地图剩余时间!timeleft\",\"bind\":\"\",\"command\":\"bind [key] \\\"timeleft\\\";\",\"tag\":[]},{\"description\":\"[ZED][地图]查看已预订地图!nomlist\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_nomlist\\\";\",\"tag\":[]},{\"description\":\"[ZED][地图]在控制台显示服务器的地图池!listmap\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_nomlist\\\";\",\"tag\":[]},{\"description\":\"[ZED][地图]在控制台显示所有CD仍在冷却的地图!mapcooldowns\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_mapcooldowns\\\";\",\"tag\":[]},{\"description\":\"[ZED][地图]我突然不想RTV了!unrtv\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_rtv\\\";\",\"tag\":[]},{\"description\":\"[ZED][地图]我要R!T!V! - 请求换图!rtv\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_rtv\\\";\",\"tag\":[]},{\"description\":\"[ZED][菜单]主菜单!menu\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_menu\\\";\",\"tag\":[]},{\"description\":\"[ZED][菜单]画面设置菜单!hud\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hud\\\";\",\"tag\":[]},{\"description\":\"[ZED][菜单]个人杂项设置!settings\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_settings\\\";\",\"tag\":[]},{\"description\":\"[ZED][菜单]呼出跳舞菜单!dance\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_dance\\\";\",\"tag\":[]},{\"description\":\"[ZED][菜单]僵尸类型选择菜单!zclass\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_zlass\\\";\",\"tag\":[]},{\"description\":\"[ZED][菜单]呼出皮肤商城菜单!skin\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_skin\\\";\",\"tag\":[]},{\"description\":\"[ZED][菜单]作为僵尸传送回出生点!ztele\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_ztele\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]隐藏符卡特效!hideeffect   [设置]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hideeffect\\\";\",\"tag\":[]},{\"description\":\"[ZED][音效]开启/关闭枪声!stopsound   [设置]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_stopsound\\\";\",\"tag\":[]},{\"description\":\"[ZED][音效]开启/关闭当僵尸时被子弹命中的声音!togglehit   [设置]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_togglehit\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]开启/关闭 屏幕晃动!toggleshake   [设置]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hideshake\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]隐藏身体和脚模!hidebody（❕）目前有BUG，隐藏后不能通过指令恢复显示，要用手电筒触发恢复\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hidebody\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]隐藏身边50unit的队友 - 作为人类时   [设置]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hide 50\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]隐藏身边150unit的队友 - 作为人类时   [设置]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hide 150\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]隐藏身边250unit的队友 - 作为人类时   [设置]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hide 250\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]隐藏身边999unit的队友 = 隐藏全部队友   [设置]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hide 999\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]开启/关闭 绝不隐藏某些白名单的模型 - 需要在zed聊天框输入!setting -> 隐藏相关设置 -> 不隐藏指定的玩家 ->添加白名单   [设置]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hidefriends\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]开启/关闭 绝不隐藏steam好友的模型!hidesteamfriends   [设置]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hidesteamfriends\\\";\",\"tag\":[]},{\"description\":\"⚠️高级绑定：绑定exec autoexec的快捷键\",\"bind\":\"\",\"command\":\"bind [key] \\\"exec autoexec\\\";\",\"tag\":[]},{\"description\":\"[ZED]开启/关闭第三人称（角度保持）⚠️高级指令，默认情况下游戏重启会失效        \",\"bind\":\"\",\"command\":\"alias tp_1 \\\"cam_command 1;alias tp_0 tp_2\\\";\\nalias tp_2 \\\"cam_command 2;alias tp_0 tp_1\\\";\\nalias tp_0 tp_1;\\nbind [key] tp_0;\\n\",\"tag\":[]},{\"description\":\"[ZED]开关第三人称越肩视角（❕）无法自动重置回第一人称，启动后需要在控制台手动输入firstperson恢复（或者绑定高级指令开关第三人称）   \",\"bind\":\"\",\"command\":\"bind [key] \\\"incrementvar c_thirdpersonshoulder 0 1 1\\\";\",\"tag\":[]},{\"description\":\"[ZED]开关第三人称固定观赏模式（❕）无法自动重置回第一人称，启动后需要在控制台手动输入firstperson恢复（或者绑定高级指令开关第三人称）   \",\"bind\":\"\",\"command\":\"bind [key] \\\"thirdperson;thirdperson_mayamode\\\";\",\"tag\":[]},{\"description\":\"[ZED]第三人称准星微调[上]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_minpitch -45;c_maxpitch 45;incrementvar cam_idealpitch -45 45 -0.1\\\";\",\"tag\":[]},{\"description\":\"[ZED]第三人称准星微调[下]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_minpitch -45;c_maxpitch 45;incrementvar cam_idealpitch -45 45 0.1\\\";\",\"tag\":[]},{\"description\":\"[ZED]第三人称准星微调[左]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_minyaw -45;c_maxyaw 45;incrementvar cam_idealyaw -45 45 0.1\\\";\",\"tag\":[]},{\"description\":\"[ZED]第三人称准星微调[右]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_minyaw -45;c_maxyaw 45;incrementvar cam_idealyaw -45 45 -0.1\\\";\",\"tag\":[]},{\"description\":\"[ZED]消除第三人称下的转向延迟，瞄准延迟   [摄像机]\",\"bind\":\"\",\"command\":\"bind [key] \\\"cam_ideallag 0\\\";\\n\",\"tag\":[]},{\"description\":\"[第三人称]摄像机是否会躲避墙壁（❕）似乎无效\",\"bind\":\"\",\"command\":\"bind [key] \\\"incrementvar cam_collision 0 1 1\\\";\\n\",\"tag\":[]},{\"description\":\"[慎用]单键取消绑定 - 设置后，拖拽到左上角复制到剪切板，然后控制台里[ctrl+v]复制运行，使用后记得把这个拖到垃圾桶里删除！！！\",\"bind\":\"\",\"command\":\"unbind [key];\",\"tag\":[]},{\"description\":\"[通用][购买道具]钳子Defuser\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy defuser\\\";\",\"tag\":[]},{\"description\":\"[通用][购买道具]闪光弹Flashbang\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy flashbang\\\";\",\"tag\":[]},{\"description\":\"[通用][购买道具]诱饵弹Decoy\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy decoy\\\";\",\"tag\":[]},{\"description\":\"[通用][购买道具]无头护甲$650\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy vest\\\";\",\"tag\":[]}]";
+            dropArea.textContent = '文件载入中...';
+            setTimeout(() => {
+                // currentFile = null; // 一辈子没用过的函数
+                dropArea.style.display = 'none';
+                removeHiddens();
+                loadBindingsFromFile(fileContent);
+                showPopup("欢迎使用CS2按键助手！" + new Date().toLocaleString(), 'popupContainer'); // 显示欢迎信息 + 当前的时间
+            }, 500);
         }
     </script>
 </body>
