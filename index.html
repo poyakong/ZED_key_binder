@@ -121,6 +121,41 @@
             /* 强制隐藏 */
         }
 
+        .advanced-edit-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .advanced-field-wrapper {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+        }
+
+        .advanced-label {
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .advanced-input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .advanced-input.single-line {
+            height: 40px;
+        }
+
+        .advanced-input.multi-line {
+            min-height: 100px;
+            resize: vertical;
+        }
+
         #addBindingButton {
             position: absolute;
             top: 20px;
@@ -285,6 +320,7 @@
             border-radius: 5px;
             box-sizing: border-box;
             background-color: #fff;
+            cursor: grab;
         }
 
         /* 描述部分 */
@@ -409,6 +445,8 @@
             align-items: flex-end;
             /* 垂直方向底部对齐 */
             flex-direction: column-reverse;
+            /* 20241214:修复阻挡问题 */
+            pointer-events: none;
         }
 
         .toggler {
@@ -420,12 +458,19 @@
             /* 按钮之间的间距 */
             font-size: 24px;
             padding: 20px;
-            width: 136px;
+            /* width: 136px; */
             height: 71px;
             background-color: #4CAF50;
             color: white;
-            box-shadow: 0 4px #2e7d32;
             /* 创建按钮下方的阴影 */
+            box-shadow: 0 4px #2e7d32;
+            /* 20241214:修复阻挡问题 */
+            pointer-events: auto;
+        }
+
+        /* 20241214:固定[关于]的按钮宽度 */
+        #Info {
+            width: 136px;
         }
 
         .toggler:active {
@@ -459,12 +504,18 @@
             position: relative;
             top: 0px;
             left: 0px;
-            display: block;
+            display: flex;
+            flex-direction: column;
             justify-content: center;
-            align-items: right;
+            align-items: flex-end;
+            pointer-events: auto;
+            /* 20241214:修复阻挡问题 */
+            user-select: none;
+            /* 20241214:防止文字选中 */
         }
 
         .popup {
+            width: fit-content;
             background: white;
             margin-bottom: 10px;
             /* 每个元素底部之间的间隔 */
@@ -587,12 +638,42 @@
         #clipBin.hidden {
             display: none !important;
         }
+
+        .draggable {
+            /*             transition:
+                transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s; */
+            /*             cursor: move; */
+        }
+
+        .binding-item.drag-move-down {
+            transform: translate(0px, 10px);
+        }
+
+        .binding-item.drag-move-up {
+            transform: translate(0px, -10px);
+        }
+
+        .draggable:hover {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .draggable.drag-over {
+            /* transform: scale(0.98); */
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.2);
+            /*             border: 2px dashed #4CAF50; */
+        }
+
+        .drag-item {
+            transform: scale(1.02);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.2);
+            border: 2px dashed #4CAF50;
+        }
     </style>
 </head>
 
 <body>
 
-    <h1 id="appTitle" class="hidden">CS2 按键绑定助手 for ZED (2024-11-29)</h1>
+    <h1 id="appTitle" class="hidden">CS2 按键绑定助手 for ZED (2024-12-14)</h1>
 
     <div id="dropArea">点击打开，或直接拖拽放置 📄 poyakong.cfg</div>
     <button id="addBindingButton" class="hidden advanced">+</button>
@@ -600,9 +681,10 @@
     <div class="togglerList">
         <button id="autoSaveButton" class="hidden toggler">自动保存</button>
         <button id="advancedModeButton" class="hidden toggler">高级模式</button>
-        <button id="exportSettingsButton" class="hidden toggler">配置导出</button>
-        <button id="importSettingsButton" class="hidden toggler advanced">配置导入</button>
+        <button id="exportSettingsButton" class="hidden toggler">设置导出</button>
+        <button id="importSettingsButton" class="hidden toggler advanced">设置导入</button>
         <button id="clipboardButton" class="hidden toggler">复制到剪切板</button>
+        <button id="autoClipboardButton" class="hidden toggler">自动复制到剪切板[√]</button>
         <div id="popupContainer" class="popupContainerCSS"></div>
     </div>
     <div id="searchContainer" class="hidden">
@@ -655,6 +737,8 @@
         const exportSettingsButton = document.getElementById('exportSettingsButton');    // 导出设置按钮
         const importSettingsButton = document.getElementById('importSettingsButton');    // 导入设置按钮
         const clipboardButton = document.getElementById('clipboardButton');    // 复制到剪切板按钮
+        const autoClipboardButton = document.getElementById('autoClipboardButton');    // 自动复制到剪切板按钮
+        let autoClipboardMode = true;    // 自动复制到剪切板模式
         const Info = document.getElementById('Info');    // 关于按钮
 
         const searchContainer = document.getElementById('searchContainer');
@@ -668,14 +752,36 @@
         let bindingsFilter = () => bindings; // 初始筛选函数，返回完整数组
         let templatesFilter = () => templates; // 初始筛选函数，返回完整数组
 
+        // 20250117 cookies support 🍪 {color:#784D37}
+        let cookiesEnabled = false;
+
+        // 20250118 localstorage support 🗄 {color:#784D37}
+        let localStorageEnabled = true;
+
+        // 20250120 exec autoexec.cfg
+        let needAutoExec = true;
+
         // Get trash bin element
         const trashBin = document.getElementById('trashBin');
+        // 为垃圾桶添加拖放事件
+        trashBin.addEventListener('dragover', trashBinDragOver);
+        trashBin.addEventListener('dragleave', trashBinDragLeave);
+        trashBin.addEventListener('drop', trashBinDrop);
 
         // Get copy bin element
         const copyBin = document.getElementById('copyBin');
+        // Add events for copy bin
+        copyBin.addEventListener('dragover', copyCopyBinDragOver);
+        copyBin.addEventListener('dragleave', copyCopyBinDragLeave);
+        copyBin.addEventListener('drop', copyCopyBinDrop);
+
 
         // Get clip bin element
         const clipBin = document.getElementById('clipBin');
+        // Add events for clip bin
+        clipBin.addEventListener('dragover', clipBinDragOver);
+        clipBin.addEventListener('dragleave', clipBinDragLeave);
+        clipBin.addEventListener('drop', clipBinDrop);
 
         const bindingModal = document.getElementById('bindingModal');
         const saveBindingButton = document.getElementById('saveBindingButton');
@@ -694,14 +800,15 @@
         }
 
         // 显示消息框
-        function showPopup(message, containerId) {
+        function showPopup(message, containerId = "popupContainer") {
             // Find the container by ID
             const container = document.getElementById(containerId);
 
             // Create a new popup element
             const popup = document.createElement('div');
             popup.classList.add('popup');
-            popup.textContent = message;
+            popup.style.whiteSpace = 'pre-line'; // 允许换行
+            popup.innerHTML = message;
 
             // Append it to the specified container
             container.appendChild(popup);
@@ -794,6 +901,7 @@
                     itemContent.style.display = 'flex';
                     itemContent.style.justifyContent = 'space-between';
                     itemContent.style.alignItems = 'center';
+                    itemContent.style.pointerEvents = 'none'; // 20241201-防止动画丢失
 
                     // Description text (left-aligned)
                     const descriptionSpan = document.createElement('span');
@@ -803,10 +911,24 @@
                     descriptionSpan.style.whiteSpace = 'nowrap';
                     descriptionSpan.style.overflow = 'hidden';
                     descriptionSpan.style.paddingLeft = '5px';
+                    descriptionSpan.style.userSelect = 'none'; // 20241214-使文本不可被选中
+
+                    // 20241202-增加公告功能
+                    if (bindingTemp.tag && bindingTemp.tag[0] === ('公告')) {
+                        if (bindingTemp.tag[1] && bindingTemp.tag[2]) {
+                            const hyperLink = document.createElement('a');
+                            hyperLink.textContent = bindingTemp.tag[1];
+                            hyperLink.href = bindingTemp.tag[2];
+                            hyperLink.target = '_blank'; // 在新窗口内打开
+                            hyperLink.style.pointerEvents = 'auto'; // 使得超链接可以被点击
+                            descriptionSpan.appendChild(hyperLink);
+                        }
+                    }
 
                     // Key setup button (right-aligned)
                     const keyButton = document.createElement('button');
                     keyButton.textContent = bindingTemp.bind || '设置';
+                    keyButton.style.pointerEvents = 'auto'; // 20241202-修复按钮点击问题
 
                     // Add click event to setup key
                     keyButton.addEventListener('click', () => {
@@ -816,7 +938,12 @@
                                 // bindingTemp[bindingTempIndex].bind = key;
                                 bindings[originalIndex].bind = key;
                                 renderBindings();
-                                showPopup(`已更改 "${key}" 作为绑定键！`, 'popupContainer');
+                                showPopup(`已更改 [${key}]➡️` + bindings[originalIndex].description, 'popupContainer');
+                                // 20241214-autoClipboard
+                                if (autoClipboardMode) {
+                                    navigator.clipboard.writeText(extractAsCmd(bindings[originalIndex]));
+                                    showPopup("❤️<span style='color: green;'>指令已复制到剪切板，控制台粘贴运行即可</span>", 'popupContainer');
+                                }
                             }
                         });
                     });
@@ -836,23 +963,6 @@
                     bindingListElement.appendChild(bindingItem);
                 });
 
-                // Add some CSS for drag and drop animations
-                const style = document.createElement('style');
-                style.textContent = `
-            .draggable {
-                transition: transform 0.2s, box-shadow 0.2s;
-                cursor: move;
-            }
-            .draggable:hover {
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            }
-            .draggable.drag-over {
-                transform: scale(1.02);
-                box-shadow: 0 6px 8px rgba(0,0,0,0.2);
-                border: 2px dashed #4CAF50;
-            }
-        `;
-                document.head.appendChild(style);
             } else {
                 // Advanced mode with editable fields
                 bindingListElement.innerHTML = '';
@@ -936,46 +1046,6 @@
                     bindingItem.appendChild(editContainer);
                     bindingListElement.appendChild(bindingItem);
                 });
-
-                // Add some CSS for styling
-                const style = document.createElement('style');
-                style.textContent = `
-            .advanced-edit-container {
-                display: flex;
-                flex-direction: column;
-                gap: 10px;
-                width: 100%;
-            }
-            
-            .advanced-field-wrapper {
-                display: flex;
-                flex-direction: column;
-                width: 100%;
-            }
-            
-            .advanced-label {
-                margin-bottom: 5px;
-                font-weight: bold;
-            }
-            
-            .advanced-input {
-                width: 100%;
-                padding: 8px;
-                border: 1px solid #ccc;
-                border-radius: 4px;
-                box-sizing: border-box;
-            }
-            
-            .advanced-input.single-line {
-                height: 40px;
-            }
-            
-            .advanced-input.multi-line {
-                min-height: 100px;
-                resize: vertical;
-            }
-        `;
-                document.head.appendChild(style);
             }
         }
 
@@ -1014,6 +1084,19 @@
                     descriptionSpan.style.whiteSpace = 'nowrap';
                     descriptionSpan.style.overflow = 'hidden';
                     descriptionSpan.style.paddingLeft = '5px';
+                    descriptionSpan.style.userSelect = 'none'; // 20241214-使文本不可被选中
+
+                    // 20241202-增加公告功能
+                    if (templateTemp.tag && templateTemp.tag[0] === ('公告')) {
+                        if (templateTemp.tag[1] && templateTemp.tag[2]) {
+                            const hyperLink = document.createElement('a');
+                            hyperLink.textContent = templateTemp.tag[1];
+                            hyperLink.href = templateTemp.tag[2];
+                            hyperLink.target = '_blank'; // 在新窗口内打开
+                            hyperLink.style.pointerEvents = 'auto'; // 使得超链接可以被点击
+                            descriptionSpan.appendChild(hyperLink);
+                        }
+                    }
 
                     // Key setup button (right-aligned)
                     const keyButton = document.createElement('button');
@@ -1031,7 +1114,11 @@
                                 };
                                 bindings.push(newBinding);
                                 renderBindings();
-                                showPopup(templateTemp.description + "已添加至绑定列表", 'popupContainer');
+                                showPopup(`已绑定[${key}]➡️` + templateTemp.description + "，请在上方列表查看", 'popupContainer');
+                                if (autoClipboardMode) {
+                                    navigator.clipboard.writeText(extractAsCmd(newBinding));
+                                    showPopup("❤️<span style='color: green;'>指令已复制到剪切板，控制台粘贴运行即可</span>", 'popupContainer');
+                                }
                             }
                         });
                     });
@@ -1049,24 +1136,6 @@
                     templateItem.appendChild(itemContent);
                     templateListElement.appendChild(templateItem);
                 });
-
-                // Add some CSS for drag and drop animations
-                const style = document.createElement('style');
-                style.textContent = `
-            .draggable {
-                transition: transform 0.2s, box-shadow 0.2s;
-                cursor: move;
-            }
-            .draggable:hover {
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            }
-            .draggable.drag-over {
-                transform: scale(1.02);
-                box-shadow: 0 6px 8px rgba(0,0,0,0.2);
-                border: 2px dashed #4CAF50;
-            }
-        `;
-                document.head.appendChild(style);
             } else {
                 // Advanced mode with editable fields
                 templateListElement.innerHTML = '';
@@ -1158,46 +1227,6 @@
                     templateItem.appendChild(editContainer);
                     templateListElement.appendChild(templateItem);
                 });
-
-                // Add some CSS for styling
-                const style = document.createElement('style');
-                style.textContent = `
-            .advanced-edit-container {
-                display: flex;
-                flex-direction: column;
-                gap: 10px;
-                width: 100%;
-            }
-            
-            .advanced-field-wrapper {
-                display: flex;
-                flex-direction: column;
-                width: 100%;
-            }
-            
-            .advanced-label {
-                margin-bottom: 5px;
-                font-weight: bold;
-            }
-            
-            .advanced-input {
-                width: 100%;
-                padding: 8px;
-                border: 1px solid #ccc;
-                border-radius: 4px;
-                box-sizing: border-box;
-            }
-            
-            .advanced-input.single-line {
-                height: 40px;
-            }
-            
-            .advanced-input.multi-line {
-                min-height: 100px;
-                resize: vertical;
-            }
-        `;
-                document.head.appendChild(style);
             }
         }
 
@@ -1207,25 +1236,9 @@
         function dragStart(e) {
             draggedItem = e.target.closest('.draggable');
             e.dataTransfer.setData('text/plain', draggedItem.id);
+            e.dataTransfer.effectAllowed = 'move'; // 允许拖放效果
 
-            // 为垃圾桶添加拖放事件
-            trashBin.addEventListener('dragover', trashBinDragOver);
-            trashBin.addEventListener('dragleave', trashBinDragLeave);
-            trashBin.addEventListener('drop', trashBinDrop);
-
-            // Add events for copy bin
-            copyBin.addEventListener('dragover', copyCopyBinDragOver);
-            copyBin.addEventListener('dragleave', copyCopyBinDragLeave);
-            copyBin.addEventListener('drop', copyCopyBinDrop);
-
-            // Add events for clip bin
-            clipBin.addEventListener('dragover', clipBinDragOver);
-            clipBin.addEventListener('dragleave', clipBinDragLeave);
-            clipBin.addEventListener('drop', clipBinDrop);
-
-            setTimeout(() => {
-                draggedItem.classList.add('drag-over');
-            }, 0);
+            // draggedItem.classList.add('drag-item');
         }
 
         function dragOver(e) {
@@ -1236,14 +1249,39 @@
         function dragEnter(e) {
             const target = e.target.closest('.draggable');
             if (target && target !== draggedItem) {
+
                 target.classList.add('drag-over');
+
+                /*                 // 获取拖动元素和目标元素的索引
+                                const draggedIndex = Array.from(target.parentNode.children).indexOf(draggedItem);
+                                const targetIndex = Array.from(target.parentNode.children).indexOf(target);
+                
+                                // 添加CSS类进行动画
+                                target.classList.add('drag-over');
+                
+                                // 根据索引判断移动方向
+                                if (draggedIndex < targetIndex) {
+                                    // 向下移动动画
+                                    target.classList.add('drag-move-up');
+                                } else if (draggedIndex > targetIndex) {
+                                    // 向上移动动画 
+                                    target.classList.add('drag-move-down');
+                                } */
             }
         }
 
         function dragLeave(e) {
             const target = e.target.closest('.draggable');
             if (target) {
-                target.classList.remove('drag-over');
+
+                target.classList.remove('drag-over', 'drag-move-down', 'drag-move-up');
+
+                /*                 // 20241201-添加位移效果
+                                // 延迟移除动画类，保持过渡效果
+                                setTimeout(() => {
+                                    target.classList.remove('drag-over', 'drag-move-down', 'drag-move-up');
+                                }, 300); // 与动画时间一致 */
+
             }
         }
 
@@ -1269,7 +1307,7 @@
                 const originalIndex = parseInt(draggedElement.dataset.originalIndex, 10); // 获取原始索引
 
                 // 显示删除提示
-                showPopup("绑定" + bindings[originalIndex].description + "已删除", 'popupContainer');
+                showPopup("已移除" + bindings[originalIndex].description, 'popupContainer');
 
                 // 从 bindings 数组中移除对应的绑定
                 bindings.splice(originalIndex, 1);
@@ -1313,7 +1351,7 @@
                 renderBindings();
 
                 // Show a popup to confirm copying
-                showPopup("绑定" + bindings[originalIndex].description + "已复制", 'popupContainer');
+                showPopup("已复制" + bindings[originalIndex].description, 'popupContainer');
             }
 
             // Clear drag state
@@ -1443,12 +1481,12 @@
                         showPopup("欢迎使用CS2按键助手！" + new Date().toLocaleString(), 'popupContainer'); // 显示欢迎信息 + 当前的时间
                     }, 500);
                 } else {
-                    dropArea.textContent = '似乎是不受支持的格式\r\n请确保载入poyakong.cfg格式的文件';
+                    dropArea.textContent = '似乎是不受支持的格式 请确保载入poyakong.cfg格式的文件';
                 }
             };
 
             reader.onerror = function () {
-                dropArea.textContent = '无法读取文件\r\n请确保载入正确的文本格式的poyakong.cfg文件';
+                dropArea.textContent = '无法读取文件 请确保载入正确的文本格式的poyakong.cfg文件';
             };
 
             reader.readAsText(file, 'UTF-8');
@@ -1478,6 +1516,7 @@
                             // 解析文件内容并加载绑定
                             loadBindingsFromFile(content);
                         } else {
+                            showPopup("似乎是不受支持的格式 请确保载入poyakong.cfg格式的文件", 'popupContainer');
                             console.error("不支持的文件格式");
                         }
                     };
@@ -1532,7 +1571,7 @@
         // 关于按钮 - 事件监听
         addEventListener('click', (event) => {
             if (event.target === Info) {
-                showPopup("作者: 破亚空-Yakong-P\r\n构筑版本: 2024-11-29\r\n", 'popupContainer');
+                showPopup("作者: 破亚空-Yakong-P 构筑版本: 2024-12-14\n", 'popupContainer');
                 secretCounter++;
                 if (secretCounter >= 5) {
                     secretTrigger();
@@ -1567,6 +1606,20 @@
             }
         });
 
+        // 20241214-自动复制模式 - 事件监听
+        addEventListener('click', (event) => {
+            if (event.target === autoClipboardButton) {
+                autoClipboardMode = !autoClipboardMode;    // 切换自动复制模式
+                if (!autoClipboardMode) {
+                    autoClipboardButton.classList.add('off');
+                    showPopup("自动复制指令功能已关闭", 'popupContainer');
+                } else {
+                    autoClipboardButton.classList.remove('off');
+                    showPopup("自动复制指令功能已开启", 'popupContainer');
+                }
+            }
+        });
+
         // 初次启动时的页面切换
         function removeHiddens() {
             appTitle.classList.remove('hidden'); // 显示标题
@@ -1577,6 +1630,8 @@
             // autoSaveButton.classList.remove('hidden'); //     显示自动保存按钮
             exportSettingsButton.classList.remove('hidden'); // 显示导出设置按钮
             importSettingsButton.classList.remove('hidden'); // 显示导入设置按钮
+            importSettingsButton.classList.remove('advanced'); // 20241202-开放导入设置按钮给用户
+            autoClipboardButton.classList.remove('hidden'); // 20241214-启用自动复制指令功能
             // importSettingsButton.classList.add('warm'); //  显示导入设置按钮颜色
             searchContainer.classList.remove('hidden'); // 显示搜索框
             trashBin.classList.remove('hidden'); // 显示垃圾桶
@@ -1600,11 +1655,11 @@
         function checkAdvancedMode() {
             if (advancedMode) {
                 addBindingButton.classList.remove('advanced');
-                importSettingsButton.classList.remove('advanced');
+                // importSettingsButton.classList.remove('advanced');
                 advancedModeButton.classList.add('warm');
             } else {
                 addBindingButton.classList.add('advanced');
-                importSettingsButton.classList.add('advanced');
+                // importSettingsButton.classList.add('advanced');
                 advancedModeButton.classList.remove('warm');
             }
         }
@@ -1631,15 +1686,21 @@
 
         // 文件导入
         function loadBindingsFromFile(passContent) {
-            // Debug 导入时清洗文本内容
+            // Debug 导入时清洗文本内容 (\n -> \r\n)
+            // const content = passContent
+            //     .replace(/\r\n/g, '\n') // 先处理 CRLF
+            //     .replace(/\r/g, '\n') // 处理老式 Mac 风格的 CR
+            //     .replace(/\n/g, '\r\n'); // 统一换成 Windows 风格的 CRLF
+
+            // Debug 导入时清洗文本内容 (\r\n -> \n)
             const content = passContent
                 .replace(/\r\n/g, '\n') // 先处理 CRLF
                 .replace(/\r/g, '\n') // 处理老式 Mac 风格的 CR
-                .replace(/\n/g, '\r\n'); // 统一换成 Windows 风格的 CRLF
+
             // Find a line call "//template builder"
             const templateBuilderIndex = content.indexOf('//template builder');
             if (templateBuilderIndex >= 0) {
-                let lines = content.substring(templateBuilderIndex).split('\r\n'); // Skip "//template builder" at the start
+                let lines = content.substring(templateBuilderIndex).split('\n'); // Skip "//template builder" at the start
                 // 每四行解析一个绑定, all start with "//"
                 if (lines[1] && lines[1].startsWith('//')) {
                     lines = lines.filter(line => line.startsWith('//')); // 过滤出以“//”开头的行
@@ -1667,7 +1728,7 @@
             // Find a line call "//json-bindings"
             let jsonIndex = content.indexOf('//json-bindings');
             if (jsonIndex >= 0) {
-                const lines = content.substring(jsonIndex).split('\r\n'); //.map(line => line.trim()); //冗余保险 // skin "//json-bindings"
+                const lines = content.substring(jsonIndex).split('\n'); //.map(line => line.trim()); //冗余保险 // skin "//json-bindings"
                 // 跳过 "//"
                 if (lines[1] && lines[1].startsWith('//')) {
                     const jsonStr = lines[1].substring(2).trim(); // Skip "//" at the start
@@ -1690,7 +1751,7 @@
             // Find a line call "//json-templates"
             jsonIndex = content.indexOf('//json-templates');
             if (jsonIndex >= 0) {
-                const lines = content.substring(jsonIndex).split('\r\n'); //.map(line => line.trim()); //冗余保险 // skin "//json-templates"
+                const lines = content.substring(jsonIndex).split('\n'); //.map(line => line.trim()); //冗余保险 // skin "//json-templates"
                 // 跳过 "//"
                 if (lines[1] && lines[1].startsWith('//')) {
                     const jsonStr = lines[1].substring(2).trim(); // Skip "//" at the start
@@ -1716,33 +1777,33 @@
             try {
                 // Construct the content string as three parts:
                 // 1. the first line "//poyakong.cfg"
-                // 2. for each binding, extractAsEcho() + extractAsCmd() + '\r\n'
+                // 2. for each binding, extractAsEcho() + extractAsCmd() + '\n'
                 // 3. the JSON string for the bindings array
-                const content = `//poyakong.cfg\r\n` +
-                    `//` + appTitle.textContent + '\r\n' +
-                    `//作者: 破亚空-Yakong-P\r\n` +
-                    `//文件构筑: ` + new Date().toLocaleString() + '\r\n' +
-                    '\r\n' +
-                    '\r\n' +
-                    `//使用方法：\r\n` +
-                    `//1、将本文件放置于CounterStrike: Global Offesive/game/csgo/cfg文件夹中\r\n` +
-                    `//2、打开游戏\r\n` +
-                    `//3、在CS2设置里，启用控制台\r\n` +
-                    `//4、在控制台里，输入exec poyakong.cfg，然后回车确认\r\n` +
-                    `//5、如果导入成功，则会显示一堆的绑定的信息\r\n` +
-                    `//6、如果导入失败，则会产生一条执行失败的信息：[InputService] exec: couldn't exec '{*}cfg/xxx.cfg', unable to read file\r\n` +
-                    '\r\n' +
-                    '\r\n' +
+                const content = `//poyakong.cfg\n` +
+                    `//` + appTitle.textContent + '\n' +
+                    `//作者: 破亚空-Yakong-P\n` +
+                    `//文件构筑: ` + new Date().toLocaleString() + '\n' +
+                    '\n' +
+                    '\n' +
+                    `//使用方法：\n` +
+                    `//1、将本文件放置于CounterStrike: Global Offesive/game/csgo/cfg文件夹中\n` +
+                    `//2、打开游戏\n` +
+                    `//3、在CS2设置里，启用控制台\n` +
+                    `//4、在控制台里，输入exec poyakong.cfg，然后回车确认\n` +
+                    `//5、如果导入成功，则会显示一堆的绑定的信息\n` +
+                    `//6、如果导入失败，则会产生一条执行失败的信息：[InputService] exec: couldn't exec '{*}cfg/xxx.cfg', unable to read file\n` +
+                    '\n' +
+                    '\n' +
                     // 导出绑定
                     bindings.map(binding => {
                         // 检查 binding.bind 是否为空，空则跳过
                         if (!binding.bind) {
                             return '';
                         }
-                        return `//` + binding.description + '\r\n' + extractAsCmd(binding) + '\r\n';
+                        return `//` + binding.description + '\n' + extractAsCmd(binding) + '\n';
                     }).join('') +
-                    '\r\n' +
-                    '\r\n' +
+                    '\n' +
+                    '\n' +
                     // 生成echo
                     bindings.map(binding => {
                         // 检查 binding.templates 是否为空，空则跳过
@@ -1751,14 +1812,14 @@
                         }
                         return extractAsEcho(binding);
                     }).join('') +
-                    '\r\n' +
-                    '\r\n' +
-                    `//json-bindings\r\n` +
-                    `//` + extractAsJson(bindings) +
-                    '\r\n' +
-                    '\r\n' +
-                    `//json-templates\r\n` +
-                    `//` + extractAsJson(templates);
+                    '\n' +
+                    '\n' +
+                    `//json-bindings\n` +
+                    `//` + extractAsJson(bindings); //+
+                // '\n' +
+                // '\n' +
+                // `//json-templates\n` +
+                // `//` + extractAsJson(templates);
 
                 // Create a file and write the content to it with name poyakong.cfg
                 const file = new File([content], 'poyakong.cfg', { type: 'text/plain' });
@@ -1791,11 +1852,11 @@
             const command = binding.command;
             // replace the "[key]" in the command with the bind
             let cmd = command.replace(/\[key\]/g, bind);
-            // check every \r\n if they missing ; as ;\r\n
+            // check every \n if they missing ; as ;\n
             cmd = cmd
-                .split('\r\n')
+                .split('\n')
                 .map(line => (line.endsWith(';') ? line : line + ';'))
-                .join('\r\n');
+                .join('\n');
 
             // return the cmd
             return cmd;
@@ -1811,7 +1872,7 @@
             const description = binding.description;
             const bind = binding.bind;
             // return the echo
-            return `echo \"\[${bind}\]绑定为${description}\"\r\n`;
+            return `echo \"\[${bind}\]绑定为${description}\"\n`;
         }
 
         // json
@@ -1840,7 +1901,7 @@
                 const keyDetectorOverlay = document.createElement('div');
                 keyDetectorOverlay.classList.add('keyDetectorOverlay');
 
-                keyDetectorOverlay.textContent = '请输入按键\r\n或按ESC退出';
+                keyDetectorOverlay.textContent = '请输入按键\n或按ESC退出';
 
                 const specialKeyMappings = {
                     // Numpad keys
@@ -1852,21 +1913,23 @@
                     'NumpadDecimal': 'kp_del',
 
                     // Modifier keys
-                    'ControlRight': 'rctrl',
-                    'ShiftRight': 'rshift',
-                    'AltRight': 'ralt',
+                    'ControlRight': 'rCtrl',
+                    'ShiftRight': 'rShift',
+                    'AltRight': 'rAlt',
 
                     // Additional special keys
-                    'Tab': 'tab',
-                    'CapsLock': 'capslock',
-                    'Insert': 'ins',
-                    'Delete': 'del',
-                    'Home': 'home',
-                    'End': 'end',
-                    'PageUp': 'pgup',
-                    'PageDown': 'pgdn',
-                    'ScrollLock': 'scrolllock',
-                    'Pause': 'pause'
+                    'Tab': 'Tab',
+                    'CapsLock': 'Capslock',
+                    'Insert': 'Ins',
+                    'Delete': 'Del',
+                    'Home': 'Home',
+                    'End': 'End',
+                    'PageUp': 'Pgup',
+                    'PageDown': 'Pgdn',
+                    'ScrollLock': 'Scrolllock',
+                    'Pause': 'Pause',
+                    'Backspace': 'Backspace',
+                    'Semicolon': 'Semicolon'
 
                     // 'MetaRight': 'rwin'
                 };
@@ -1892,22 +1955,21 @@
                     // Check for modifier keys first
                     if (['Control', 'Shift', 'Alt', 'CapsLock', 'Tab'].includes(event.key)) {
                         let modifierKey = '';
-                        if (event.ctrlKey) modifierKey = event.location === event.DOM_KEY_LOCATION_RIGHT ? 'rctrl' : 'ctrl';
-                        if (event.shiftKey) modifierKey = event.location === event.DOM_KEY_LOCATION_RIGHT ? 'rshift' : 'shift';
-                        if (event.altKey) modifierKey = event.location === event.DOM_KEY_LOCATION_RIGHT ? 'ralt' : 'alt';
+                        if (event.ctrlKey) modifierKey = event.location === event.DOM_KEY_LOCATION_RIGHT ? 'rCtrl' : 'Ctrl';
+                        if (event.shiftKey) modifierKey = event.location === event.DOM_KEY_LOCATION_RIGHT ? 'rShift' : 'Shift';
+                        if (event.altKey) modifierKey = event.location === event.DOM_KEY_LOCATION_RIGHT ? 'rAlt' : 'Alt';
 
                         // Check for other special keys
                         const specialKeyMap = {
-                            'CapsLock': 'capslock',
-                            'Tab': 'tab'
+                            'CapsLock': 'Capslock',
+                            'Tab': 'Tab'
                         };
 
                         modifierKey = modifierKey || specialKeyMap[event.key];
 
                         if (modifierKey) {
                             // Remove the overlay
-                            document.body.removeChild(keyDetectorOverlay);
-                            document.removeEventListener('keydown', keyHandler);
+                            cleanup();
                             resolve(modifierKey);
                             return;
                         }
@@ -1918,23 +1980,58 @@
 
                     // Determine the key to use
                     const bindKey = specialKey ||
-                        (event.key.length === 1 ? event.key :
-                            (['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12'].includes(event.key) ? event.key : null));
+                        (event.key.length === 1
+                            ? event.key.toUpperCase()
+                            : (['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12'].includes(event.key) ? event.key : null));
 
                     if (bindKey) {
 
                         // Remove the overlay
-                        document.body.removeChild(keyDetectorOverlay);
-                        document.removeEventListener('keydown', keyHandler);
-
+                        cleanup();
                         //
                         resolve(bindKey);
                         return;
                     }
                 };
 
+                const mouseHandler = (event) => {
+                    event.preventDefault();
+
+                    let mouseKey;
+                    switch (event.button) {
+                        case 0: mouseKey = 'mouse1'; break;
+                        case 1: mouseKey = 'mouse3'; break;
+                        case 2: mouseKey = 'mouse2'; break;
+                        case 3: mouseKey = 'mouse4'; break; // Side button 1
+                        case 4: mouseKey = 'mouse5'; break; // Side button 2
+                    }
+
+                    if (mouseKey) {
+                        cleanup();
+                        resolve(mouseKey);
+                        return;
+                    }
+                };
+
+                const wheelHandler = (event) => {
+                    event.preventDefault();
+
+                    const direction = event.deltaY < 0 ? 'mwheelup' : 'mwheeldown';
+                    cleanup();
+                    resolve(direction);
+                };
+
+                const cleanup = () => {
+                    document.body.removeChild(keyDetectorOverlay);
+                    document.removeEventListener('keydown', keyHandler);
+                    document.removeEventListener('mousedown', mouseHandler);
+                    document.removeEventListener('wheel', wheelHandler);
+                };
+
                 // Add event listener and append to body
                 document.addEventListener('keydown', keyHandler);
+                document.addEventListener('mousedown', mouseHandler);
+                document.addEventListener('wheel', wheelHandler);
                 document.body.appendChild(keyDetectorOverlay);
             });
         }
@@ -1942,13 +2039,13 @@
         // builders exporter
         function exportBuilders() {
             const content =
-                `//poyakong.cfg\r\n` +
-                `//template builder\r\n` +
+                `//poyakong.cfg\n` +
+                `//template builder\n` +
                 bindings.map(binding => {
-                    return `//${binding.description}\r\n` +
-                        `//${binding.bind}\r\n` +
-                        `//${binding.command}\r\n` +
-                        `//${binding.tag}\r\n`;
+                    return `//${binding.description}\n` +
+                        `//${binding.bind}\n` +
+                        `//${binding.command}\n` +
+                        `//${binding.tag}\n`;
                 }).join('');
 
             // Create a file and write the content to it with name poyakong.cfg
@@ -1966,8 +2063,8 @@
 
         // window.onload for 生产环境
         window.onload = () => {
-            const fileContent = "//poyakong.cfg\r\n//CS2 按键绑定助手 for ZED (2024-11-28)\r\n//作者: 破亚空-Yakong-P\r\n//文件构筑: 2024/11/29 23:16:41\r\n\r\n\r\n//使用方法：\r\n//1、将本文件放置于CounterStrike: Global Offesive/game/csgo/cfg文件夹中\r\n//2、打开游戏\r\n//3、在CS2设置里，启用控制台\r\n//4、在控制台里，输入exec poyakong.cfg，然后回车确认\r\n//5、如果导入成功，则会显示一堆的绑定的信息\r\n//6、如果导入失败，则会产生一条执行失败的信息：[InputService] exec: couldn't exec '{*}cfg/xxx.cfg', unable to read file\r\n\r\n\r\n\r\n\r\n\r\n\r\n//json-templates\r\n//[{\"description\":\"[公告]⚠️大部分指令的使用教程：1、点击设置，然后按下键盘要绑定的按键 2、拖拽你要用的指令，至左上角，自动复制到剪切板 3、进入游戏，在控制台内[ctrl+v]，[enter]回车运行\",\"bind\":\"\",\"command\":\"\",\"tag\":[]},{\"description\":\"[公告]⚠️高级绑定使用教程：1、将高级指令粘贴至autoexec.cfg文件里 2、CS2启动项添加+exec autoexec.cfg\",\"bind\":\"\",\"command\":\"\",\"tag\":[]},{\"description\":\"[ZED][购买道具]回血针(电击枪)\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy taser\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买道具]高爆手雷HE\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy hegrenade\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买道具]冰冻雷(烟雾弹)\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy smokegrenade\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买道具]燃烧瓶(燃烧弹)\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy molotov\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买道具]补充护甲$1000\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy vesthelm\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][步枪]ak47\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_ak47\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][步枪]m4a1\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_m4a1\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][步枪]m4a4\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_m4a4\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][步枪]SG556\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_sg556\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][步枪]AUG\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_aug\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][步枪]法玛斯Famas\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_famas\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][步枪]咖喱Galilar - 加利尔AR\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_galilar\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][机枪]内格夫Negev\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_negev\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][机枪]M249\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_m249\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][狙击步枪]SSG-08\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_ssg08\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][狙击步枪]AWP\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_awp\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][狙击步枪]SCAR-20\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_scar20\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][狙击步枪]G3SG1\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_g3sg1\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]Tec-9\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_tec9\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]Five-seven\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_Fiveseven\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]p250\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_p250\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]沙鹰Deagle\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_deagle\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]左轮Revolver\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_revolver\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]双枪Elite\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_elite\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]CZ-75\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_cz\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]usp\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_usp_silencer\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]Glock-18\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_glock188\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]hkp2000\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_p2000\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][霰弹枪]新星Nova\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_nova\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][霰弹枪]Mag-7\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_mag7\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][霰弹枪]短喷sawedoff\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_sawedoff\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][霰弹枪]连喷xm1014\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_xm1014\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][冲锋枪]野牛Bizon\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_bizon\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][冲锋枪]MP9\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_mp9\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][冲锋枪]P90\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_p90\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][冲锋枪]MP7\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_mp7\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][冲锋枪]MP5-SD\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_mp5\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][冲锋枪]UMP-45\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_ump45\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][冲锋枪]Mac-10\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_mac10\\\";\",\"tag\":[]},{\"description\":\"[ZED][❔]朝(队友/敌人)按下时，产生一个会跟踪的红色标记\",\"bind\":\"\",\"command\":\"bind [key] \\\"cl_ent_viewoffset\\\";\\n\",\"tag\":[]},{\"description\":\"[ZED][画面显示]开启/关闭血迹显示!toggledecals\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_toggledecals\\\";\",\"tag\":[]},{\"description\":\"[ZED][快捷功能]查看自己有没有特殊封禁!status\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_status\\\";\",\"tag\":[]},{\"description\":\"[ZED][快捷功能]作为僵尸传送回出生点!ztele\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_ztele\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]修复悬浮菜单位置飘走消失的问题!resethud   [菜单修复]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_resethud\\\";\",\"tag\":[]},{\"description\":\"[ZED][地图]呼出指挥投票菜单!vl\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_vl\\\";\",\"tag\":[]},{\"description\":\"[ZED][投票]投票延长地图!ve\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_ve\\\";\",\"tag\":[]},{\"description\":\"[ZED][地图]查看地图剩余延长次数!extendsleft\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_extendsleft\\\";\",\"tag\":[]},{\"description\":\"[ZED][地图]查看地图剩余时间!timeleft\",\"bind\":\"\",\"command\":\"bind [key] \\\"timeleft\\\";\",\"tag\":[]},{\"description\":\"[ZED][地图]查看已预订地图!nomlist\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_nomlist\\\";\",\"tag\":[]},{\"description\":\"[ZED][地图]在控制台显示服务器的地图池!listmap\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_nomlist\\\";\",\"tag\":[]},{\"description\":\"[ZED][地图]在控制台显示所有CD仍在冷却的地图!mapcooldowns\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_mapcooldowns\\\";\",\"tag\":[]},{\"description\":\"[ZED][地图]我突然不想RTV了!unrtv\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_rtv\\\";\",\"tag\":[]},{\"description\":\"[ZED][地图]我要R!T!V! - 请求换图!rtv\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_rtv\\\";\",\"tag\":[]},{\"description\":\"[ZED][菜单]主菜单!menu\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_menu\\\";\",\"tag\":[]},{\"description\":\"[ZED][菜单]画面设置菜单!hud\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hud\\\";\",\"tag\":[]},{\"description\":\"[ZED][菜单]个人杂项设置!settings\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_settings\\\";\",\"tag\":[]},{\"description\":\"[ZED][菜单]呼出跳舞菜单!dance\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_dance\\\";\",\"tag\":[]},{\"description\":\"[ZED][菜单]僵尸类型选择菜单!zclass\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_zlass\\\";\",\"tag\":[]},{\"description\":\"[ZED][菜单]呼出皮肤商城菜单!skin\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_skin\\\";\",\"tag\":[]},{\"description\":\"[ZED][菜单]作为僵尸传送回出生点!ztele\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_ztele\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]隐藏符卡特效!hideeffect   [设置]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hideeffect\\\";\",\"tag\":[]},{\"description\":\"[ZED][音效]开启/关闭枪声!stopsound   [设置]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_stopsound\\\";\",\"tag\":[]},{\"description\":\"[ZED][音效]开启/关闭当僵尸时被子弹命中的声音!togglehit   [设置]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_togglehit\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]开启/关闭 屏幕晃动!toggleshake   [设置]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hideshake\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]隐藏身体和脚模!hidebody（❕）目前有BUG，隐藏后不能通过指令恢复显示，要用手电筒触发恢复\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hidebody\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]隐藏身边50unit的队友 - 作为人类时   [设置]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hide 50\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]隐藏身边150unit的队友 - 作为人类时   [设置]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hide 150\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]隐藏身边250unit的队友 - 作为人类时   [设置]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hide 250\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]隐藏身边999unit的队友 = 隐藏全部队友   [设置]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hide 999\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]开启/关闭 绝不隐藏某些白名单的模型 - 需要在zed聊天框输入!setting -> 隐藏相关设置 -> 不隐藏指定的玩家 ->添加白名单   [设置]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hidefriends\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]开启/关闭 绝不隐藏steam好友的模型!hidesteamfriends   [设置]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hidesteamfriends\\\";\",\"tag\":[]},{\"description\":\"⚠️高级绑定：绑定exec autoexec的快捷键\",\"bind\":\"\",\"command\":\"bind [key] \\\"exec autoexec\\\";\",\"tag\":[]},{\"description\":\"[ZED]开启/关闭第三人称（角度保持）⚠️高级指令，默认情况下游戏重启会失效        \",\"bind\":\"\",\"command\":\"alias tp_1 \\\"cam_command 1;alias tp_0 tp_2\\\";\\nalias tp_2 \\\"cam_command 2;alias tp_0 tp_1\\\";\\nalias tp_0 tp_1;\\nbind [key] tp_0;\\n\",\"tag\":[]},{\"description\":\"[ZED]开关第三人称越肩视角（❕）无法自动重置回第一人称，启动后需要在控制台手动输入firstperson恢复（或者绑定高级指令开关第三人称）   \",\"bind\":\"\",\"command\":\"bind [key] \\\"incrementvar c_thirdpersonshoulder 0 1 1\\\";\",\"tag\":[]},{\"description\":\"[ZED]开关第三人称固定观赏模式（❕）无法自动重置回第一人称，启动后需要在控制台手动输入firstperson恢复（或者绑定高级指令开关第三人称）   \",\"bind\":\"\",\"command\":\"bind [key] \\\"thirdperson;thirdperson_mayamode\\\";\",\"tag\":[]},{\"description\":\"[ZED]第三人称准星微调[上]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_minpitch -45;c_maxpitch 45;incrementvar cam_idealpitch -45 45 -0.1\\\";\",\"tag\":[]},{\"description\":\"[ZED]第三人称准星微调[下]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_minpitch -45;c_maxpitch 45;incrementvar cam_idealpitch -45 45 0.1\\\";\",\"tag\":[]},{\"description\":\"[ZED]第三人称准星微调[左]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_minyaw -45;c_maxyaw 45;incrementvar cam_idealyaw -45 45 0.1\\\";\",\"tag\":[]},{\"description\":\"[ZED]第三人称准星微调[右]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_minyaw -45;c_maxyaw 45;incrementvar cam_idealyaw -45 45 -0.1\\\";\",\"tag\":[]},{\"description\":\"[ZED]消除第三人称下的转向延迟，瞄准延迟   [摄像机]\",\"bind\":\"\",\"command\":\"bind [key] \\\"cam_ideallag 0\\\";\\n\",\"tag\":[]},{\"description\":\"[第三人称]摄像机是否会躲避墙壁（❕）似乎无效\",\"bind\":\"\",\"command\":\"bind [key] \\\"incrementvar cam_collision 0 1 1\\\";\\n\",\"tag\":[]},{\"description\":\"[慎用]单键取消绑定 - 设置后，拖拽到左上角复制到剪切板，然后控制台里[ctrl+v]复制运行，使用后记得把这个拖到垃圾桶里删除！！！\",\"bind\":\"\",\"command\":\"unbind [key];\",\"tag\":[]},{\"description\":\"[通用][购买道具]钳子Defuser\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy defuser\\\";\",\"tag\":[]},{\"description\":\"[通用][购买道具]闪光弹Flashbang\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy flashbang\\\";\",\"tag\":[]},{\"description\":\"[通用][购买道具]诱饵弹Decoy\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy decoy\\\";\",\"tag\":[]},{\"description\":\"[通用][购买道具]无头护甲$650\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy vest\\\";\",\"tag\":[]}]";
-            dropArea.textContent = '文件载入中...';
+            const fileContent = "//poyakong.cfg\n//CS2 按键绑定助手 for ZED (2024-12-14)\n//作者: 破亚空-Yakong-P\n//文件构筑: 2024/12/14 11:00:56\n\n\n//使用方法：\n//1、将本文件放置于CounterStrike: Global Offesive/game/csgo/cfg文件夹中\n//2、打开游戏\n//3、在CS2设置里，启用控制台\n//4、在控制台里，输入exec poyakong.cfg，然后回车确认\n//5、如果导入成功，则会显示一堆的绑定的信息\n//6、如果导入失败，则会产生一条执行失败的信息：[InputService] exec: couldn't exec '{*}cfg/xxx.cfg', unable to read file\n\n\n\n\n\n\n//json-templates\n//[{\"description\":\"[公告]⬆️善用全局搜索⭐个人最爱⚠️注意事项\",\"bind\":\"\",\"command\":\"\",\"tag\":[]},{\"description\":\"[公告]⚠️使用教程：1、点击设置，然后按下键盘要绑定的按键 2、拖拽你要用的指令，至左上角，自动复制到剪切板 3、进入游戏，在控制台内[ctrl+v]，[enter]回车运行\",\"bind\":\"\",\"command\":\"\",\"tag\":[]},{\"description\":\"[公告]⚠️视频教程：\",\"bind\":\"\",\"command\":\"\",\"tag\":[\"公告\",\"BV1d1zkYSEgN\",\"https://www.bilibili.com/video/BV1d1zkYSEgN/\"]},{\"description\":\"[公告]⚠️如果是第一次使用，记得将配置文件autoexec.cfg放置到Counter-Strike Global Offensive\\\\game\\\\csgo\\\\cfg文件夹中！！！\",\"bind\":\"\",\"command\":\"\",\"tag\":[]},{\"description\":\"[按键设置]单键解除绑定，取消绑定\",\"bind\":\"\",\"command\":\"unbind [key];\",\"tag\":[]},{\"description\":\"[ZED][购买ZE道具]高爆手雷\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy hegrenade\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买ZE道具]ZED回血针(电击枪)\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy taser\\\";\",\"tag\":[]},{\"description\":\"[ZED][按键绑定]掏出 - 回血针\",\"bind\":\"\",\"command\":\"bind [key] \\\"slot12\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买ZE道具]冰冻雷(烟雾弹)\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy smokegrenade\\\";\",\"tag\":[]},{\"description\":\"[ZED][按键绑定]掏出 - 冰冻雷\",\"bind\":\"\",\"command\":\"bind [key] \\\"slot8\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买ZE道具]燃烧瓶(燃烧弹)\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy molotov\\\";\",\"tag\":[]},{\"description\":\"[ZED][按键绑定]掏出 - 燃烧瓶\",\"bind\":\"\",\"command\":\"bind [key] \\\"slot10\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买ZE道具]补充护甲$1000\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy vesthelm\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][步枪]ak47\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_ak47\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][步枪]m4a1\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_m4a1\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][步枪]m4a4\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_m4a4\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][步枪]SG556\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_sg556\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][步枪]AUG\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_aug\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][步枪]法玛斯Famas\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_famas\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][步枪]咖喱Galilar - 加利尔AR\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_galilar\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][机枪]内格夫Negev\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_negev\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][机枪]M249\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_m249\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][狙击步枪]SSG-08\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_ssg08\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][狙击步枪]AWP\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_awp\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][狙击步枪]SCAR-20\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_scar20\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][狙击步枪]G3SG1\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_g3sg1\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]Tec-9\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_tec9\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]Five-seven\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_Fiveseven\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]p250\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_p250\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]沙鹰Deagle\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_deagle\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]左轮Revolver\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_revolver\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]双枪Elite\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_elite\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]CZ-75\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_cz\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]usp\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_usp_silencer\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]Glock-18\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_glock188\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][手枪]hkp2000\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_p2000\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][霰弹枪]新星Nova\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_nova\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][霰弹枪]Mag-7\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_mag7\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][霰弹枪]短喷sawedoff\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_sawedoff\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][霰弹枪]连喷xm1014\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_xm1014\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][冲锋枪]野牛Bizon\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_bizon\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][冲锋枪]MP9\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_mp9\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][冲锋枪]P90\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_p90\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][冲锋枪]MP7\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_mp7\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][冲锋枪]MP5-SD\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_mp5\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][冲锋枪]UMP-45\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_ump45\\\";\",\"tag\":[]},{\"description\":\"[ZED][购买武器][冲锋枪]Mac-10\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_mac10\\\";\",\"tag\":[]},{\"description\":\"[ZED][娱乐向]（❔）对人按下时，产生一个会跟踪的红色标记\",\"bind\":\"\",\"command\":\"bind [key] \\\"cl_ent_viewoffset\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]开/关 血迹显示!toggledecals\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_toggledecals\\\";\",\"tag\":[]},{\"description\":\"[ZED][快捷功能]查看自己有没有特殊封禁!status\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_status\\\";\",\"tag\":[]},{\"description\":\"[ZED][快捷功能]作为僵尸传送回出生点!ztele\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_ztele\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]修复悬浮菜单位置飘走消失的问题!resethud   [菜单修复]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_resethud\\\";\",\"tag\":[]},{\"description\":\"[ZED][地图]呼出指挥投票菜单!vl\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_vl\\\";\",\"tag\":[]},{\"description\":\"[ZED][投票]投票延长地图!ve\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_ve\\\";\",\"tag\":[]},{\"description\":\"[ZED][地图]查看地图剩余延长次数!extendsleft\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_extendsleft\\\";\",\"tag\":[]},{\"description\":\"[ZED][地图]查看地图剩余时间!timeleft\",\"bind\":\"\",\"command\":\"bind [key] \\\"timeleft\\\";\",\"tag\":[]},{\"description\":\"[ZED][地图]查看已预订地图!nomlist\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_nomlist\\\";\",\"tag\":[]},{\"description\":\"[ZED][地图]在控制台显示服务器的地图池!listmap\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_nomlist\\\";\",\"tag\":[]},{\"description\":\"[ZED][地图]在控制台显示所有CD仍在冷却的地图!mapcooldowns\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_mapcooldowns\\\";\",\"tag\":[]},{\"description\":\"[ZED][地图]我突然不想RTV了!unrtv\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_rtv\\\";\",\"tag\":[]},{\"description\":\"[ZED][地图]我要R!T!V! - 请求换图!rtv\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_rtv\\\";\",\"tag\":[]},{\"description\":\"[ZED][菜单]呼出主菜单!menu\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_menu\\\";\",\"tag\":[]},{\"description\":\"[ZED][菜单]呼出画面设置菜单!hud\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hud\\\";\",\"tag\":[]},{\"description\":\"[ZED][菜单]呼出个人杂项设置菜单!settings\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_settings\\\";\",\"tag\":[]},{\"description\":\"[ZED][菜单]呼出跳舞菜单!dance\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_dance\\\";\",\"tag\":[]},{\"description\":\"[ZED][菜单]呼出僵尸类型选择菜单!zclass\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_zlass\\\";\",\"tag\":[]},{\"description\":\"[ZED][菜单]呼出皮肤商城菜单!skin\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_skin\\\";\",\"tag\":[]},{\"description\":\"[ZED][功能]传送回出生点!ztele\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_ztele\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]隐藏符卡弹幕特效!hideeffect   [切换]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hideeffect\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]⭐启用夜视仪，地图滤镜切换   [开/关]\",\"bind\":\"\",\"command\":\"bind [key] \\\"mapFilter_0\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]开/关 子弹曳光效果（全局所有人）[切换]\",\"bind\":\"\",\"command\":\"bind [key] \\\"incrementvar r_drawtracers 0 1 1\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]开/关 第一人称的子弹曳光效果（仅自身）[切换]\",\"bind\":\"\",\"command\":\"bind [key] \\\"incrementvar r_drawtracers_firstperson 0 1 1\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]开启/关闭 屏幕晃动!toggleshake   [切换][屏幕震动]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hideshake\\\";\",\"tag\":[]},{\"description\":\"[ZED][音效]开/关 枪声!stopsound   [切换]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_stopsound\\\";\",\"tag\":[]},{\"description\":\"[ZED][音效]开/关 僵尸被打头的声音!togglehit   [切换]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_togglehit\\\";\",\"tag\":[]},{\"description\":\"[ZED][音效]调整音量 - 游戏音乐(BGM)（增大8%）[+]\",\"bind\":\"\",\"command\":\"bind [key] \\\"incrementvar snd_musicvolume -0.1 1.1 0.08\\\";\",\"tag\":[]},{\"description\":\"[ZED][音效]调整音量 - 游戏音乐(BGM)（减小8%）[-]\",\"bind\":\"\",\"command\":\"bind [key] \\\"incrementvar snd_musicvolume -0.1 1.1 -0.08\\\";\",\"tag\":[]},{\"description\":\"[ZED][音效]调整音量 - 队友语音（增大8%）[+]\",\"bind\":\"\",\"command\":\"bind [key] \\\"incrementvar snd_voipvolume -0.1 2.1 0.08\\\";\",\"tag\":[]},{\"description\":\"[ZED][音效]调整音量 - 队友语音（减小8%）[-]\",\"bind\":\"\",\"command\":\"bind [key] \\\"incrementvar snd_voipvolume -0.1 2.1 -0.08\\\";\",\"tag\":[]},{\"description\":\"[ZED][音效]调整音量 - 游戏总语音（增大5%）[+]\",\"bind\":\"\",\"command\":\"bind [key] \\\"incrementvar volume -0.1 1.1 0.05\\\";\",\"tag\":[]},{\"description\":\"[ZED][音效]调整音量 - 游戏总语音（减小5%）[-]\",\"bind\":\"\",\"command\":\"bind [key] \\\"incrementvar volume -0.1 1.1 -0.05\\\";\",\"tag\":[]},{\"description\":\"[ZED][音效]开/关 声音穿透 - 游戏切出桌面后，依然播放游戏声音\",\"bind\":\"\",\"command\":\"bind [key] \\\"incrementvar snd_mute_losefocus 0 1 1\\\";\",\"tag\":[]},{\"description\":\"[ZED][菜单]⭐呼出隐藏模型，隐藏特效的整合菜单\",\"bind\":\"\",\"command\":\"bind [key] \\\"radio1\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]开/关 隐藏身边1unit的队友（作为人类时）[切换]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hide 0\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]开/关 隐藏身边50unit的队友（作为人类时）[切换]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hide 50\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]开/关 隐藏身边150unit的队友（作为人类时）[切换]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hide 150\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]开/关 隐藏身边250unit的队友（作为人类时）[切换]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hide 250\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]开/关 隐藏身边9999unit的队友（作为人类时）[切换]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hide -1\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]开/关 绝不隐藏处于白名单的队友 - 需要在zed聊天框输入!setting -> 隐藏相关设置 -> 不隐藏指定的玩家 ->添加白名单   [切换]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hidefriends\\\";\",\"tag\":[]},{\"description\":\"[ZED][画面显示]开/关 绝不隐藏steam好友的模型!hidesteamfriends   [切换]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_hidesteamfriends\\\";\",\"tag\":[]},{\"description\":\"[ZED][第三人称切换]⭐启用第三人称，恢复第一人称（角度保持）[tp]\",\"bind\":\"\",\"command\":\"bind [key] tp_0;\",\"tag\":[]},{\"description\":\"[ZED][第三人称切换][怀旧版本]CSGO版本的!tp，第三人称，第三人称固定摄像机观赏模式!mirror(mayamode)，第一人称\",\"bind\":\"\",\"command\":\"bind [key] \\\"mayamode_0\\\";\",\"tag\":[]},{\"description\":\"[ZED]🔄重置第三人称的摄像机位置\",\"bind\":\"\",\"command\":\"bind [key] \\\"cam_command 1;c_thirdpersonshoulder 0;cam_idealyaw 0;cam_idealpitch 0;cam_idealdist 150\\\";c_thirdpersonshoulderheight 5;c_thirdpersonshoulderoffset 20;\",\"tag\":[]},{\"description\":\"[ZED]第三人称 - 准星微调[上]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_minpitch -180;c_maxpitch 180;incrementvar cam_idealpitch -90 90 -0.1\\\";\",\"tag\":[]},{\"description\":\"[ZED]第三人称 - 准星微调[下]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_minpitch -180;c_maxpitch 180;incrementvar cam_idealpitch -90 90 0.1\\\";\",\"tag\":[]},{\"description\":\"[ZED]第三人称 - 准星微调[左]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_minyaw -180;c_maxyaw 180;incrementvar cam_idealyaw -180 180 0.1\\\";\",\"tag\":[]},{\"description\":\"[ZED]第三人称 - 准星微调[右]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_minyaw -180;c_maxyaw 180;incrementvar cam_idealyaw -180 180 -0.1\\\";\",\"tag\":[]},{\"description\":\"[ZED]第三人称 - 视角位置[拉近]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_mindistance -500;c_maxdistance 500;incrementvar cam_idealdist -510 510 -5\\\";\",\"tag\":[]},{\"description\":\"[ZED]第三人称 - 视角位置[拉远]\",\"bind\":\"\",\"command\":\"bind [key] \\\"c_mindistance -500;c_maxdistance 500;incrementvar cam_idealdist -510 510 5\\\";\",\"tag\":[]},{\"description\":\"[ZED][观赏专用]使用第三人称近距离观赏角色正脸，让角色看着你   （只适配了正常高度的角色）（需要多按几次调整，因为不同角色视角的方向有细微差别）\",\"bind\":\"\",\"command\":\"bind [key] \\\"cam_command 1;c_thirdpersonshoulder 1;c_minyaw -360;c_maxyaw 360;c_thirdpersonshoulderheight 0;c_thirdpersonshoulderoffset 2;cam_idealdist 30;incrementvar cam_idealyaw 170 179.9 0.5\\\";\",\"tag\":[]},{\"description\":\"[通用][购买道具]钳子Defuser\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy defuser\\\";\",\"tag\":[]},{\"description\":\"[通用][购买道具]闪光弹Flashbang\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy flashbang\\\";\",\"tag\":[]},{\"description\":\"[通用][购买道具]诱饵弹Decoy\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy decoy\\\";\",\"tag\":[]},{\"description\":\"[通用][购买道具]无头护甲$650\",\"bind\":\"\",\"command\":\"bind [key] \\\"buy vest\\\";\",\"tag\":[]}]\n\n//json-templates\n//[]";
+
             setTimeout(() => {
                 // currentFile = null; // 一辈子没用过的函数
                 dropArea.style.display = 'none';
@@ -1975,7 +2072,65 @@
                 loadBindingsFromFile(fileContent);
                 showPopup("欢迎使用CS2按键助手！" + new Date().toLocaleString(), 'popupContainer'); // 显示欢迎信息 + 当前的时间
             }, 500);
+
+            // 20250117 localStorage support 💿 {color:#784D37}
+            if (localStorageEnabled == true) {
+                // retrieve localStorage
+                bindings = JSON.parse(localStorage.getItem('poyakong_bindings')) || [];
+                originalRenderBindings();
+            }
+
+            // 20250117 cookies 🍪 {color:#784D37}
+            if (cookiesEnabled == true && document.cookie.length > 0) {
+                bindings = JSON.parse.decodeURIComponent((getCookie('poyakong_bindings')));
+                originalRenderBindings();
+            }
         }
+
+        addEventListener('beforeunload', function (event) {
+
+            // 20250117 localStorage support 💿 {color:#784D37}
+            if (localStorageEnabled == true) {
+                // store localStorage
+                localStorage.setItem('poyakong_bindings', JSON.stringify(bindings));
+            }
+
+            // 20250117 cookies support 🍪 {color:#784D37}
+            if (cookiesEnabled == true) {
+                // store cookies
+                setCookie('poyakong_bindings', encodeURIComponent(JSON.stringify(bindings)), 365);
+            }
+        });
+
+        // 20250117 cookies support - functions 🍪 {color:#784D37}
+        function setCookie(key, value = "", daysToExpired = 30) {
+            const date = new Date();
+            date.setTime(date.getTime() + (daysToExpired * 24 * 60 * 60 * 1000));
+            const expires = "expires=" + date.toUTCString();
+            document.cookie = `${key}=${value}; ${expires}; path=/`;
+        }
+
+        function getCookie(key) {
+            const name = key + "=";
+            const decodedCookie = decodeURIComponent(document.cookie);
+            const cArray = decodedCookie.split('; ');
+
+            for (let i = 0; i < cArray.length; i++) {
+                let c = cArray[i];
+                while (c.charAt(0) === ' ') {
+                    c = c.substring(1);
+                }
+                if (c.indexOf(name) === 0) {
+                    return c.substring(name.length, c.length);
+                }
+            }
+            return "";
+        }
+
+        function deleteCookie(key) {
+            document.cookie = `${key}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/`;
+        }
+
     </script>
 </body>
 
